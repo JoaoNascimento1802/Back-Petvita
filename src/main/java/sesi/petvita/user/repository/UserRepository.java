@@ -5,6 +5,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 import sesi.petvita.user.model.UserModel;
+import sesi.petvita.user.role.UserRole;
 
 import java.util.List;
 import java.util.Optional;
@@ -16,4 +17,6 @@ public interface UserRepository extends JpaRepository<UserModel, Long> {
 
     // Método atualizado para suportar paginação
     Page<UserModel> findByUsernameContainingIgnoreCase(String username, Pageable pageable);
+
+    List<UserModel> findByRole(UserRole role);
 }

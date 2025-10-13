@@ -43,51 +43,39 @@ public class SecurityConfig {
 
                         // Rotas públicas
                         .requestMatchers(
-                                "/auth/login",
+                                "/auth/**",
                                 "/users/register",
-                                "/auth/forgot-password",
-                                "/auth/reset-password",
                                 "/v3/api-docs/**",
-                                "/swagger-ui/**",
-                                "/swagger-ui.html"
+                                "/swagger-ui/**"
                         ).permitAll()
-                        .requestMatchers(HttpMethod.GET, "/veterinary/**").permitAll() // Horários de vets são públicos
-                        .requestMatchers(HttpMethod.GET, "/admin/clinic-services").permitAll() // Listar serviços é público para agendamento
+                        .requestMatchers(HttpMethod.GET, "/veterinary/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/employee/all").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/public/services").permitAll()
 
-                        // Rotas de Usuário (USER)
-                        .requestMatchers("/pets/**").hasRole("USER")
+                        // Rotas de Utilizador (USER)
+                        .requestMatchers("/pets/**", "/api/service-schedules/**").hasRole("USER")
                         .requestMatchers(HttpMethod.POST, "/consultas").hasRole("USER")
-                        .requestMatchers(HttpMethod.POST, "/api/service-schedules").hasRole("USER") // Agendar serviços
                         .requestMatchers(HttpMethod.PUT, "/consultas/{id}").hasRole("USER")
                         .requestMatchers(HttpMethod.POST, "/consultas/{id}/cancel").hasRole("USER")
                         .requestMatchers(HttpMethod.POST, "/veterinary/{id}/rate").hasRole("USER")
-                        .requestMatchers(HttpMethod.GET, "/pets/{petId}/medical-records/**").hasRole("USER")
 
                         // Rotas de Veterinário (VETERINARY)
-                        .requestMatchers("/vet/work-schedule/**").hasRole("VETERINARY")
+                        .requestMatchers("/vet/**").hasRole("VETERINARY")
                         .requestMatchers("/consultas/{id}/accept", "/consultas/{id}/reject", "/consultas/{id}/finalize").hasRole("VETERINARY")
                         .requestMatchers(HttpMethod.PUT, "/consultas/{id}/report").hasRole("VETERINARY")
-                        .requestMatchers(HttpMethod.GET, "/veterinary/me/**").hasRole("VETERINARY")
-                        .requestMatchers(HttpMethod.GET, "/consultas/vet/my-consultations").hasRole("VETERINARY")
 
                         // Rotas de Funcionário (EMPLOYEE)
-                        .requestMatchers("/api/employee/**").hasRole("EMPLOYEE")
+                        .requestMatchers("/api/employee/my-schedules").hasRole("EMPLOYEE")
 
                         // Rotas de Admin (ADMIN)
-                        .requestMatchers("/admin/clinic-services/**").hasRole("ADMIN") // Apenas admin gerencia serviços
-                        .requestMatchers("/admin/**").hasRole("ADMIN")
-                        .requestMatchers("/reports/**").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.POST, "/veterinary").hasRole("ADMIN")
+                        .requestMatchers("/admin/**", "/reports/**").hasRole("ADMIN")
 
                         // Rotas compartilhadas por autenticados
-                        .requestMatchers("/chat/**").hasAnyRole("USER", "ADMIN", "VETERINARY", "EMPLOYEE")
-                        .requestMatchers("/notifications/**").hasAnyRole("USER", "ADMIN", "VETERINARY", "EMPLOYEE")
-                        .requestMatchers(HttpMethod.POST, "/upload/**").hasAnyRole("USER", "ADMIN", "VETERINARY", "EMPLOYEE")
+                        .requestMatchers("/chat/**", "/notifications/**").authenticated()
+                        .requestMatchers(HttpMethod.POST, "/upload/**").authenticated()
                         .requestMatchers(HttpMethod.PUT, "/users/me").authenticated()
-                        .requestMatchers(HttpMethod.GET, "/users/me").authenticated()
-                        .requestMatchers(HttpMethod.GET, "/consultas/**").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/users/me", "/consultas/**").authenticated()
 
-                        // Qualquer outra requisição precisa de autenticação
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -127,3 +115,4 @@ public class SecurityConfig {
         return new BCryptPasswordEncoder();
     }
 }
+
