@@ -1,0 +1,21 @@
+# Arquivos compilados do Java
+*.class
+*.jar
+*.war
+/target/
+
+# Arquivos de IDE
+.idea/
+*.iml
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# Logs
+*.log
+
+# Arquivos do sistema operacional
+.DS_Store
+Thumbs.db
