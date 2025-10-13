@@ -1,13 +1,10 @@
 package sesi.petvita.clinic.service;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import sesi.petvita.clinic.dto.ClinicServiceRequestDTO;
 import sesi.petvita.clinic.model.ClinicService;
 import sesi.petvita.clinic.repository.ClinicServiceRepository;
-import sesi.petvita.veterinary.speciality.SpecialityEnum;
 
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -27,16 +24,25 @@ public class ClinicServiceService {
                 .orElseThrow(() -> new NoSuchElementException("Serviço não encontrado com o ID: " + id));
     }
 
-    public ClinicService save(ClinicService clinicService) {
-        // Validações adicionais podem ser inseridas aqui antes de salvar
-        return clinicServiceRepository.save(clinicService);
+    public ClinicService save(ClinicServiceRequestDTO dto) {
+        ClinicService newService = new ClinicService();
+        newService.setName(dto.name());
+        newService.setDescription(dto.description());
+        newService.setPrice(dto.price());
+        // Esta linha só compila se o Lombok estiver a funcionar corretamente na IDE
+        newService.setSpeciality(dto.speciality());
+        newService.setMedicalService(dto.isMedicalService());
+        return clinicServiceRepository.save(newService);
     }
 
-    public ClinicService update(Long id, ClinicService serviceDetails) {
+    public ClinicService update(Long id, ClinicServiceRequestDTO dto) {
         ClinicService existingService = findById(id);
-        existingService.setName(serviceDetails.getName());
-        existingService.setDescription(serviceDetails.getDescription());
-        existingService.setPrice(serviceDetails.getPrice());
+        existingService.setName(dto.name());
+        existingService.setDescription(dto.description());
+        existingService.setPrice(dto.price());
+        // E esta linha também
+        existingService.setSpeciality(dto.speciality());
+        existingService.setMedicalService(dto.isMedicalService());
         return clinicServiceRepository.save(existingService);
     }
 
@@ -46,8 +52,4 @@ public class ClinicServiceService {
         }
         clinicServiceRepository.deleteById(id);
     }
-
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private SpecialityEnum speciality;
 }

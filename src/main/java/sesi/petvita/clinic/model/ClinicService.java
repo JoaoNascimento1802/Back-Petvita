@@ -2,11 +2,13 @@ package sesi.petvita.clinic.model;
 
 import jakarta.persistence.*;
 import lombok.*;
+import sesi.petvita.veterinary.speciality.SpecialityEnum;
+
 import java.math.BigDecimal;
 
 @Entity
-@Getter
-@Setter
+@Getter // O Lombok cria os métodos get...()
+@Setter // O Lombok cria os métodos set...(), incluindo setSpeciality()
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
@@ -24,6 +26,10 @@ public class ClinicService {
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal price;
 
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
+    private SpecialityEnum speciality;
+
+    @Column(name = "is_medical_service", nullable = false)
     private boolean isMedicalService;
 }

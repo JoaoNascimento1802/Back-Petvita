@@ -1,12 +1,13 @@
 package sesi.petvita.clinic.controller;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import sesi.petvita.clinic.dto.ClinicServiceRequestDTO;
 import sesi.petvita.clinic.model.ClinicService;
 import sesi.petvita.clinic.service.ClinicServiceService;
-
 
 import java.util.List;
 
@@ -24,13 +25,13 @@ public class ClinicServiceController {
     }
 
     @PostMapping
-    public ResponseEntity<ClinicService> createService(@RequestBody ClinicService service) {
-        return ResponseEntity.ok(clinicServiceService.save(service));
+    public ResponseEntity<ClinicService> createService(@Valid @RequestBody ClinicServiceRequestDTO serviceDto) {
+        return ResponseEntity.ok(clinicServiceService.save(serviceDto));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<ClinicService> updateService(@PathVariable Long id, @RequestBody ClinicService serviceDetails) {
-        return ResponseEntity.ok(clinicServiceService.update(id, serviceDetails));
+    public ResponseEntity<ClinicService> updateService(@PathVariable Long id, @Valid @RequestBody ClinicServiceRequestDTO serviceDto) {
+        return ResponseEntity.ok(clinicServiceService.update(id, serviceDto));
     }
 
     @DeleteMapping("/{id}")
