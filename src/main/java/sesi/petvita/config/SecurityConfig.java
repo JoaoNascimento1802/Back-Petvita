@@ -72,7 +72,9 @@ public class SecurityConfig {
 
                         // Rotas compartilhadas por autenticados
                         .requestMatchers("/chat/**", "/notifications/**").authenticated()
-                        .requestMatchers(HttpMethod.POST, "/upload/**").authenticated()
+                        // --- CORREÇÃO AQUI: Adiciona a permissão para o endpoint de upload ---
+                        .requestMatchers("/upload/**").authenticated()
+                        // ---------------------------------------------------------------------
                         .requestMatchers(HttpMethod.PUT, "/users/me").authenticated()
                         .requestMatchers(HttpMethod.GET, "/users/me", "/consultas/**").authenticated()
 
@@ -88,7 +90,10 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of("http://localhost:3000", "https://front-petvita.vercel.app/"));
+        configuration.setAllowedOrigins(List.of(
+                "http://localhost:3000",
+                "https://vet-clinic-api-front.vercel.app"
+        ));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);
@@ -115,4 +120,3 @@ public class SecurityConfig {
         return new BCryptPasswordEncoder();
     }
 }
-

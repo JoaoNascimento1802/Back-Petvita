@@ -25,6 +25,5 @@ public record UserRequestDTO(
         @NotBlank @Pattern(regexp = "^\\d{7,9}X?$", message = "Formato de RG inválido")
         String rg,
 
-        @NotBlank
         String imageurl
 ) {}
