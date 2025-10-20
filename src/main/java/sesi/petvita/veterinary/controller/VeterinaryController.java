@@ -1,25 +1,28 @@
 package sesi.petvita.veterinary.controller;
 
+import com.itextpdf.text.DocumentException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import sesi.petvita.user.model.UserModel;
-import sesi.petvita.veterinary.dto.VeterinarianMonthlyReportDTO;
-import sesi.petvita.veterinary.dto.VeterinaryRatingRequestDTO;
-import sesi.petvita.veterinary.dto.VeterinaryRequestDTO;
-import sesi.petvita.veterinary.dto.VeterinaryResponseDTO;
+import sesi.petvita.veterinary.dto.*;
 import sesi.petvita.veterinary.service.VeterinaryService;
 import sesi.petvita.veterinary.speciality.SpecialityEnum;
 
+import java.io.IOException;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/veterinary")
@@ -97,5 +100,56 @@ public class VeterinaryController {
     @Operation(summary = "[VET] Obter relatório de consultas do mês para o veterinário logado")
     public ResponseEntity<VeterinarianMonthlyReportDTO> getMyMonthlyReport(@AuthenticationPrincipal UserModel user) {
         return ResponseEntity.ok(veterinaryService.getMonthlyReport(user));
+    }
+
+    // NOVOS ENDPOINTS - FASE 3
+
+    @PostMapping("/medical-records/{recordId}/attachments")
+    @Operation(summary = "[VET] Anexar um arquivo a um prontuário médico")
+    public ResponseEntity<Map<String, String>> uploadAttachment(
+            @PathVariable Long recordId,
+            @RequestParam("file") MultipartFile file) throws IOException {
+        String url = veterinaryService.addAttachmentToMedicalRecord(recordId, file);
+        return ResponseEntity.status(HttpStatus.CREATED).body(Map.of("url", url));
+    }
+
+    @PostMapping("/consultations/{consultationId}/prescriptions")
+    @Operation(summary = "[VET] Criar uma nova prescrição para uma consulta")
+    public ResponseEntity<Void> createPrescription(
+            @PathVariable Long consultationId,
+            @Valid @RequestBody PrescriptionRequestDTO dto) {
+        veterinaryService.createPrescription(consultationId, dto);
+        return ResponseEntity.status(HttpStatus.CREATED).build();
+    }
+
+    @GetMapping("/prescription-templates")
+    @Operation(summary = "[VET] Listar meus templates de prescrição")
+    public ResponseEntity<List<PrescriptionTemplateResponseDTO>> getMyTemplates(@AuthenticationPrincipal UserModel user) {
+        return ResponseEntity.ok(veterinaryService.findMyTemplates(user));
+    }
+
+    @PostMapping("/prescription-templates")
+    @Operation(summary = "[VET] Salvar uma nova prescrição como template")
+    public ResponseEntity<PrescriptionTemplateResponseDTO> createTemplate(
+            @Valid @RequestBody PrescriptionTemplateRequestDTO dto,
+            @AuthenticationPrincipal UserModel user) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(veterinaryService.createTemplate(dto, user));
+    }
+
+    @GetMapping("/prescriptions/{prescriptionId}/pdf")
+    @Operation(summary = "[VET] Gerar PDF de uma prescrição")
+    public ResponseEntity<byte[]> getPrescriptionPdf(@PathVariable Long prescriptionId) {
+        try {
+            byte[] pdfBytes = veterinaryService.generatePrescriptionPdf(prescriptionId);
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_PDF);
+            String filename = "prescricao_petvita_" + prescriptionId + ".pdf";
+            headers.setContentDispositionFormData("attachment", filename);
+            headers.setCacheControl("must-revalidate, post-check=0, pre-check=0");
+            return new ResponseEntity<>(pdfBytes, headers, HttpStatus.OK);
+        } catch (DocumentException | IOException e) {
+            System.err.println("Erro ao gerar PDF da prescrição: " + e.getMessage());
+            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+        }
     }
 }

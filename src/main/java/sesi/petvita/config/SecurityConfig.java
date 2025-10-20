@@ -1,6 +1,7 @@
 package sesi.petvita.config;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -33,6 +34,9 @@ public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthFilter;
     private final UserDetailsService userDetailsService;
 
+    @Value("${cors.allowed.origins}")
+    private String[] allowedOrigins;
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
@@ -41,7 +45,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                        // Rotas públicas
+                        // Endpoints Públicos
                         .requestMatchers(
                                 "/auth/**",
                                 "/users/register",
@@ -49,35 +53,42 @@ public class SecurityConfig {
                                 "/swagger-ui/**"
                         ).permitAll()
                         .requestMatchers(HttpMethod.GET, "/veterinary/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/employee/all").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/public/services").permitAll()
 
-                        // Rotas de Utilizador (USER)
-                        .requestMatchers("/pets/**", "/api/service-schedules/**").hasRole("USER")
+                        // Endpoints para Usuários Autenticados (qualquer role)
+                        .requestMatchers("/chat/**", "/notifications/**", "/upload/**").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/users/me", "/consultas/**").authenticated()
+                        .requestMatchers(HttpMethod.PUT, "/users/me").authenticated()
+
+                        // Endpoints para Role "USER"
+                        .requestMatchers("/pets/**").hasAnyRole("USER", "EMPLOYEE", "ADMIN")
+                        .requestMatchers("/api/service-schedules/**").hasAnyRole("USER", "EMPLOYEE", "ADMIN")
                         .requestMatchers(HttpMethod.POST, "/consultas").hasRole("USER")
                         .requestMatchers(HttpMethod.PUT, "/consultas/{id}").hasRole("USER")
                         .requestMatchers(HttpMethod.POST, "/consultas/{id}/cancel").hasRole("USER")
                         .requestMatchers(HttpMethod.POST, "/veterinary/{id}/rate").hasRole("USER")
 
-                        // Rotas de Veterinário (VETERINARY)
+                        // Endpoints para Role "VETERINARY"
                         .requestMatchers("/vet/**").hasRole("VETERINARY")
-                        .requestMatchers("/consultas/{id}/accept", "/consultas/{id}/reject", "/consultas/{id}/finalize").hasRole("VETERINARY")
+                        .requestMatchers("/veterinary/medical-records/**").hasRole("VETERINARY") // NOVO
+                        .requestMatchers("/veterinary/consultations/**").hasRole("VETERINARY") // NOVO
+                        .requestMatchers("/veterinary/prescription-templates/**").hasRole("VETERINARY") // NOVO
+                        .requestMatchers("/veterinary/prescriptions/**").hasRole("VETERINARY") // NOVO
+                        .requestMatchers(
+                                "/consultas/{id}/accept",
+                                "/consultas/{id}/reject",
+                                "/consultas/{id}/finalize"
+                        ).hasRole("VETERINARY")
                         .requestMatchers(HttpMethod.PUT, "/consultas/{id}/report").hasRole("VETERINARY")
 
-                        // Rotas de Funcionário (EMPLOYEE)
-                        .requestMatchers("/api/employee/my-schedules").hasRole("EMPLOYEE")
+                        // Endpoints para Role "EMPLOYEE"
+                        .requestMatchers("/api/employee/**").hasAnyRole("EMPLOYEE", "ADMIN")
 
-                        // Rotas de Admin (ADMIN)
-                        .requestMatchers("/admin/**", "/reports/**").hasRole("ADMIN")
+                        // Endpoints para Role "ADMIN"
+                        .requestMatchers("/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/reports/**").hasRole("ADMIN")
 
-                        // Rotas compartilhadas por autenticados
-                        .requestMatchers("/chat/**", "/notifications/**").authenticated()
-                        // --- CORREÇÃO AQUI: Adiciona a permissão para o endpoint de upload ---
-                        .requestMatchers("/upload/**").authenticated()
-                        // ---------------------------------------------------------------------
-                        .requestMatchers(HttpMethod.PUT, "/users/me").authenticated()
-                        .requestMatchers(HttpMethod.GET, "/users/me", "/consultas/**").authenticated()
-
+                        // Qualquer outra requisição deve ser autenticada
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -90,10 +101,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of(
-                "http://localhost:3000",
-                "https://vet-clinic-api-front.vercel.app"
-        ));
+        configuration.setAllowedOrigins(List.of(allowedOrigins));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);

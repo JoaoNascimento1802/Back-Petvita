@@ -1,30 +1,38 @@
 package sesi.petvita.veterinary.service;
 
+import com.itextpdf.text.*;
+import com.itextpdf.text.pdf.PdfPCell;
+import com.itextpdf.text.pdf.PdfPTable;
+import com.itextpdf.text.pdf.PdfWriter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
+import sesi.petvita.config.CloudinaryService;
 import sesi.petvita.consultation.model.ConsultationModel;
 import sesi.petvita.consultation.repository.ConsultationRepository;
 import sesi.petvita.consultation.status.ConsultationStatus;
+import sesi.petvita.pet.model.MedicalRecord;
+import sesi.petvita.pet.repository.MedicalRecordRepository;
 import sesi.petvita.user.model.UserModel;
 import sesi.petvita.user.repository.UserRepository;
 import sesi.petvita.user.role.UserRole;
 import sesi.petvita.veterinary.dto.*;
+import sesi.petvita.veterinary.mapper.PrescriptionTemplateMapper;
 import sesi.petvita.veterinary.mapper.VeterinaryMapper;
-import sesi.petvita.veterinary.model.VeterinaryModel;
-import sesi.petvita.veterinary.model.VeterinaryRating;
-import sesi.petvita.veterinary.model.WorkSchedule;
-import sesi.petvita.veterinary.repository.VeterinaryRatingRepository;
-import sesi.petvita.veterinary.repository.VeterinaryRepository;
-import sesi.petvita.veterinary.repository.WorkScheduleRepository;
+import sesi.petvita.veterinary.model.*;
+import sesi.petvita.veterinary.repository.*;
 import sesi.petvita.veterinary.speciality.SpecialityEnum;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -40,6 +48,12 @@ public class VeterinaryService {
     private final VeterinaryRatingRepository ratingRepository;
     private final ConsultationRepository consultationRepository;
     private final WorkScheduleRepository workScheduleRepository;
+    private final CloudinaryService cloudinaryService;
+    private final MedicalRecordRepository medicalRecordRepository;
+    private final MedicalAttachmentRepository medicalAttachmentRepository;
+    private final PrescriptionRepository prescriptionRepository;
+    private final PrescriptionTemplateRepository prescriptionTemplateRepository;
+    private final PrescriptionTemplateMapper prescriptionTemplateMapper;
 
     @Transactional
     public VeterinaryResponseDTO createVeterinary(VeterinaryRequestDTO dto) {
@@ -91,7 +105,6 @@ public class VeterinaryService {
         DayOfWeek dayOfWeek = date.getDayOfWeek();
         WorkSchedule schedule = workScheduleRepository.findByVeterinaryIdAndDayOfWeek(vetId, dayOfWeek)
                 .orElse(null);
-
         if (schedule == null || !schedule.isWorking() || schedule.getStartTime() == null || schedule.getEndTime() == null) {
             return new ArrayList<>();
         }
@@ -104,7 +117,6 @@ public class VeterinaryService {
         }
 
         List<LocalTime> bookedSlots = consultationRepository.findBookedTimesByVeterinarianAndDate(vetId, date);
-
         return allPossibleSlots.stream()
                 .filter(slot -> !bookedSlots.contains(slot))
                 .collect(Collectors.toList());
@@ -114,7 +126,6 @@ public class VeterinaryService {
     public VeterinaryResponseDTO updateVeterinary(Long id, VeterinaryRequestDTO dto) {
         VeterinaryModel vet = veterinaryRepository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("Veterinário não encontrado com o ID: " + id));
-
         UserModel userAccount = vet.getUserAccount();
         if (userAccount == null) {
             throw new IllegalStateException("Perfil de veterinário sem conta de usuário associada.");
@@ -125,7 +136,6 @@ public class VeterinaryService {
         userAccount.setPhone(dto.phone());
         userAccount.setImageurl(dto.imageurl());
         userAccount.setRg(dto.rg());
-
         if (dto.password() != null && !dto.password().isEmpty()) {
             userAccount.setPassword(passwordEncoder.encode(dto.password()));
         }
@@ -153,8 +163,6 @@ public class VeterinaryService {
         }
 
         VeterinaryModel vet = veterinaryRepository.findById(id).get();
-
-        // A exclusão do UserModel é feita em cascata (orphanRemoval=true)
         veterinaryRepository.delete(vet);
     }
 
@@ -164,7 +172,6 @@ public class VeterinaryService {
                 .orElseThrow(() -> new NoSuchElementException("Veterinário não encontrado."));
         UserModel user = userRepository.findById(userId)
                 .orElseThrow(() -> new NoSuchElementException("Usuário não encontrado."));
-
         VeterinaryRating newRating = VeterinaryRating.builder()
                 .veterinary(vet)
                 .user(user)
@@ -174,7 +181,7 @@ public class VeterinaryService {
         ratingRepository.save(newRating);
 
         List<VeterinaryRating> allRatings = vet.getRatings();
-        allRatings.add(newRating); // Adiciona a nova avaliação para o cálculo
+        allRatings.add(newRating);
         double totalRating = allRatings.stream().mapToDouble(VeterinaryRating::getRating).sum();
         vet.setRatingCount(allRatings.size());
         vet.setAverageRating(totalRating / allRatings.size());
@@ -217,7 +224,6 @@ public class VeterinaryService {
     public VeterinarianMonthlyReportDTO getMonthlyReport(UserModel user) {
         VeterinaryModel vet = veterinaryRepository.findByUserAccount(user)
                 .orElseThrow(() -> new IllegalStateException("Perfil de veterinário não encontrado para este usuário."));
-
         LocalDate today = LocalDate.now();
         int year = today.getYear();
         int month = today.getMonthValue();
@@ -232,5 +238,128 @@ public class VeterinaryService {
         Set<String> patients = monthlyConsultations.stream().map(c -> c.getPet().getName()).collect(Collectors.toSet());
 
         return new VeterinarianMonthlyReportDTO(year, month, total, finalized, pending, patients);
+    }
+
+    // --- MÉTODOS DA FASE 3 IMPLEMENTADOS ---
+
+    @Transactional
+    public String addAttachmentToMedicalRecord(Long recordId, MultipartFile file) throws IOException {
+        MedicalRecord medicalRecord = medicalRecordRepository.findById(recordId)
+                .orElseThrow(() -> new NoSuchElementException("Prontuário médico não encontrado com o ID: " + recordId));
+
+        Map uploadResult = cloudinaryService.upload(file);
+        String url = (String) uploadResult.get("url");
+        String publicId = (String) uploadResult.get("public_id");
+
+        MedicalAttachment attachment = MedicalAttachment.builder()
+                .medicalRecord(medicalRecord)
+                .fileName(file.getOriginalFilename())
+                .fileUrl(url)
+                .publicId(publicId)
+                .build();
+
+        medicalAttachmentRepository.save(attachment);
+
+        return url;
+    }
+
+    @Transactional
+    public void createPrescription(Long consultationId, PrescriptionRequestDTO dto) {
+        ConsultationModel consultation = consultationRepository.findById(consultationId)
+                .orElseThrow(() -> new NoSuchElementException("Consulta não encontrada com o ID: " + consultationId));
+
+        Prescription prescription = Prescription.builder()
+                .consultation(consultation)
+                .medication(dto.medication())
+                .dosage(dto.dosage())
+                .instructions(dto.instructions())
+                .build();
+
+        prescriptionRepository.save(prescription);
+    }
+
+    @Transactional(readOnly = true)
+    public List<PrescriptionTemplateResponseDTO> findMyTemplates(UserModel user) {
+        return prescriptionTemplateRepository.findByVeterinaryUserId(user.getId())
+                .stream()
+                .map(prescriptionTemplateMapper::toDTO)
+                .collect(Collectors.toList());
+    }
+
+    @Transactional
+    public PrescriptionTemplateResponseDTO createTemplate(PrescriptionTemplateRequestDTO dto, UserModel user) {
+        PrescriptionTemplate template = prescriptionTemplateMapper.toModel(dto, user);
+        PrescriptionTemplate savedTemplate = prescriptionTemplateRepository.save(template);
+        return prescriptionTemplateMapper.toDTO(savedTemplate);
+    }
+
+    public byte[] generatePrescriptionPdf(Long prescriptionId) throws DocumentException, IOException {
+        Prescription prescription = prescriptionRepository.findById(prescriptionId)
+                .orElseThrow(() -> new NoSuchElementException("Prescrição não encontrada com o ID: " + prescriptionId));
+
+        ConsultationModel consultation = prescription.getConsultation();
+        Document document = new Document();
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+
+        PdfWriter.getInstance(document, baos);
+        document.open();
+
+        // Estilos de Fonte
+        Font titleFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 18, BaseColor.BLACK);
+        Font headerFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 12, BaseColor.DARK_GRAY);
+        Font bodyFont = FontFactory.getFont(FontFactory.HELVETICA, 11, BaseColor.BLACK);
+
+        // Título
+        Paragraph title = new Paragraph("Prescrição Veterinária", titleFont);
+        title.setAlignment(Element.ALIGN_CENTER);
+        title.setSpacingAfter(20);
+        document.add(title);
+
+        // Informações do Paciente e Tutor
+        PdfPTable infoTable = new PdfPTable(2);
+        infoTable.setWidthPercentage(100);
+        infoTable.setWidths(new float[]{1, 2});
+        infoTable.setSpacingAfter(15);
+        addCellToTable(infoTable, "Paciente:", headerFont, Element.ALIGN_LEFT);
+        addCellToTable(infoTable, consultation.getPet().getName(), bodyFont, Element.ALIGN_LEFT);
+        addCellToTable(infoTable, "Tutor:", headerFont, Element.ALIGN_LEFT);
+        addCellToTable(infoTable, consultation.getUsuario().getActualUsername(), bodyFont, Element.ALIGN_LEFT);
+        document.add(infoTable);
+
+        // Detalhes da Prescrição
+        document.add(new Paragraph("Medicação:", headerFont));
+        document.add(new Paragraph(prescription.getMedication(), bodyFont));
+        document.add(Chunk.NEWLINE);
+
+        document.add(new Paragraph("Dosagem:", headerFont));
+        document.add(new Paragraph(prescription.getDosage(), bodyFont));
+        document.add(Chunk.NEWLINE);
+
+        if (prescription.getInstructions() != null && !prescription.getInstructions().isEmpty()) {
+            document.add(new Paragraph("Instruções Adicionais:", headerFont));
+            document.add(new Paragraph(prescription.getInstructions(), bodyFont));
+            document.add(Chunk.NEWLINE);
+        }
+
+        // Rodapé com informações do Veterinário
+        document.add(Chunk.NEWLINE);
+        document.add(Chunk.NEWLINE);
+        Paragraph vetInfo = new Paragraph();
+        vetInfo.setAlignment(Element.ALIGN_CENTER);
+        vetInfo.add(new Chunk(consultation.getVeterinario().getName(), bodyFont));
+        vetInfo.add(Chunk.NEWLINE);
+        vetInfo.add(new Chunk("CRMV: " + consultation.getVeterinario().getCrmv(), bodyFont));
+        document.add(vetInfo);
+
+        document.close();
+        return baos.toByteArray();
+    }
+
+    private void addCellToTable(PdfPTable table, String text, Font font, int alignment) {
+        PdfPCell cell = new PdfPCell(new Phrase(text, font));
+        cell.setBorder(Rectangle.NO_BORDER);
+        cell.setHorizontalAlignment(alignment);
+        cell.setPaddingBottom(5);
+        table.addCell(cell);
     }
 }
