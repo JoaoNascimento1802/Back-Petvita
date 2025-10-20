@@ -13,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import sesi.petvita.admin.dto.ReportSummaryDTO;
 import sesi.petvita.user.model.UserModel;
 import sesi.petvita.veterinary.dto.*;
 import sesi.petvita.veterinary.service.VeterinaryService;
@@ -36,6 +37,15 @@ public class VeterinaryController {
     @Operation(summary = "[ADMIN] Cadastrar um novo veterinário")
     public ResponseEntity<VeterinaryResponseDTO> createVeterinary(@Valid @RequestBody VeterinaryRequestDTO requestDTO) {
         return ResponseEntity.status(HttpStatus.CREATED).body(veterinaryService.createVeterinary(requestDTO));
+    }
+
+    @GetMapping("/me/custom-report")
+    @Operation(summary = "[VET] Obter relatório customizado por período para o veterinário logado")
+    public ResponseEntity<ReportSummaryDTO> getMyCustomReport(
+            @AuthenticationPrincipal UserModel user,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        return ResponseEntity.ok(veterinaryService.getCustomReportForVet(user, startDate, endDate));
     }
 
     @GetMapping

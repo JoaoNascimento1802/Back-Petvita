@@ -9,6 +9,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+import sesi.petvita.admin.dto.ReportSummaryDTO;
 import sesi.petvita.config.CloudinaryService;
 import sesi.petvita.consultation.model.ConsultationModel;
 import sesi.petvita.consultation.repository.ConsultationRepository;
@@ -27,6 +28,7 @@ import sesi.petvita.veterinary.speciality.SpecialityEnum;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -361,5 +363,38 @@ public class VeterinaryService {
         cell.setHorizontalAlignment(alignment);
         cell.setPaddingBottom(5);
         table.addCell(cell);
+    }
+
+    public ReportSummaryDTO getCustomReportForVet(UserModel user, LocalDate startDate, LocalDate endDate) {
+        VeterinaryModel vet = veterinaryRepository.findByUserAccount(user)
+                .orElseThrow(() -> new IllegalStateException("Perfil de veterinário não encontrado para este usuário."));
+
+        List<ConsultationModel> filteredConsultations = consultationRepository.findWithFilters(
+                startDate, endDate, vet.getId(), null
+        );
+
+        long total = filteredConsultations.size();
+
+        Map<String, Long> byStatus = filteredConsultations.stream()
+                .collect(Collectors.groupingBy(c -> c.getStatus().getDescricao(), Collectors.counting()));
+
+        Map<String, Long> bySpeciality = filteredConsultations.stream()
+                .collect(Collectors.groupingBy(c -> c.getSpecialityEnum().getDescricao(), Collectors.counting()));
+
+        List<ConsultationModel> finalizedConsultations = filteredConsultations.stream()
+                .filter(c -> c.getStatus() == ConsultationStatus.FINALIZADA && c.getClinicService() != null)
+                .collect(Collectors.toList());
+
+        BigDecimal totalRevenue = finalizedConsultations.stream()
+                .map(c -> c.getClinicService().getPrice())
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        Map<String, BigDecimal> revenueByService = finalizedConsultations.stream()
+                .collect(Collectors.groupingBy(
+                        c -> c.getClinicService().getName(),
+                        Collectors.reducing(BigDecimal.ZERO, c -> c.getClinicService().getPrice(), BigDecimal::add)
+                ));
+
+        return new ReportSummaryDTO(total, byStatus, bySpeciality, totalRevenue, revenueByService);
     }
 }

@@ -55,6 +55,10 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/veterinary/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/public/services").permitAll()
 
+                        // --- CORREÇÃO AQUI ---
+                        // Permite que qualquer usuário autenticado veja a lista de funcionários.
+                        .requestMatchers(HttpMethod.GET, "/api/employee/all").authenticated()
+
                         // Endpoints para Usuários Autenticados (qualquer role)
                         .requestMatchers("/chat/**", "/notifications/**", "/upload/**").authenticated()
                         .requestMatchers(HttpMethod.GET, "/users/me", "/consultas/**").authenticated()
@@ -70,10 +74,10 @@ public class SecurityConfig {
 
                         // Endpoints para Role "VETERINARY"
                         .requestMatchers("/vet/**").hasRole("VETERINARY")
-                        .requestMatchers("/veterinary/medical-records/**").hasRole("VETERINARY") // NOVO
-                        .requestMatchers("/veterinary/consultations/**").hasRole("VETERINARY") // NOVO
-                        .requestMatchers("/veterinary/prescription-templates/**").hasRole("VETERINARY") // NOVO
-                        .requestMatchers("/veterinary/prescriptions/**").hasRole("VETERINARY") // NOVO
+                        .requestMatchers("/veterinary/medical-records/**").hasRole("VETERINARY")
+                        .requestMatchers("/veterinary/consultations/**").hasRole("VETERINARY")
+                        .requestMatchers("/veterinary/prescription-templates/**").hasRole("VETERINARY")
+                        .requestMatchers("/veterinary/prescriptions/**").hasRole("VETERINARY")
                         .requestMatchers(
                                 "/consultas/{id}/accept",
                                 "/consultas/{id}/reject",
