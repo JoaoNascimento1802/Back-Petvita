@@ -7,7 +7,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import sesi.petvita.user.model.UserModel;
 import sesi.petvita.user.repository.UserRepository;
 import sesi.petvita.user.role.UserRole;
-
+// As importações do VeterinaryRepository, VeterinaryModel e SpecialityEnum foram removidas.
 import java.util.Optional;
 
 @Configuration
@@ -16,36 +16,38 @@ public class AdminInitializer {
     @Bean
     public CommandLineRunner initAdminUser(UserRepository userRepository, PasswordEncoder passwordEncoder) {
         return args -> {
-            final String adminUsername = "meu-admin";                 // <-- Mude para um novo nome
-            final String adminEmail = "meuadmin@vetclinic.com";     // <-- Mude para um novo email
-            final String adminPassword = "MinhaSenhaAdmin@123";    // <-- Coloque uma nova senha
-
-            final String adminPhone = "11900000000";
-            final String adminAddress = "Rua Admin, 123";
-            final String adminRg = "987654321";
-            final String adminImageUrl = "https://i.pravatar.cc/150";
-
-            // O código abaixo vai verificar se "meu-admin" existe. Como não existe, ele vai criar.
-            Optional<UserModel> adminUser = userRepository.findByUsername(adminUsername);
-
-            if (adminUser.isEmpty()) {
-                System.out.println("Usuário '" + adminUsername + "' não encontrado. Criando usuário administrador...");
-
+            // Criação do usuário ADMIN
+            final String adminEmail = "admin@petvita.com";
+            if (userRepository.findByEmail(adminEmail).isEmpty()) {
+                System.out.println("Criando usuário administrador...");
                 UserModel newAdmin = new UserModel();
-                newAdmin.setUsername(adminUsername);
+                newAdmin.setUsername("Administrador");
                 newAdmin.setEmail(adminEmail);
-                newAdmin.setPassword(passwordEncoder.encode(adminPassword));
-                newAdmin.setPhone(adminPhone);
-                newAdmin.setAddress(adminAddress);
-                newAdmin.setRg(adminRg);
-                newAdmin.setImageurl(adminImageUrl);
-                newAdmin.setRole(UserRole.ADMIN); // Garante que a role é ADMIN
-
+                newAdmin.setPassword(passwordEncoder.encode("Admin@123"));
+                newAdmin.setPhone("11999999999");
+                newAdmin.setAddress("Rua Admin, 123");
+                newAdmin.setRg("999999999");
+                newAdmin.setImageurl("https://i.imgur.com/2qgrCI2.png");
+                newAdmin.setRole(UserRole.ADMIN);
                 userRepository.save(newAdmin);
-                System.out.println("Usuário '" + adminUsername + "' criado com sucesso!");
+                System.out.println("Usuário 'admin@petvita.com' criado com sucesso!");
+            }
 
-            } else {
-                System.out.println("Usuário '" + adminUsername + "' já existe.");
+            // Criação do usuário EMPLOYEE para testes
+            final String employeeEmail = "funcionario@petvita.com";
+            if (userRepository.findByEmail(employeeEmail).isEmpty()) {
+                System.out.println("Criando usuário funcionário de teste...");
+                UserModel newEmployee = new UserModel();
+                newEmployee.setUsername("Funcionario Teste");
+                newEmployee.setEmail(employeeEmail);
+                newEmployee.setPassword(passwordEncoder.encode("Funcionario@123"));
+                newEmployee.setPhone("11888888888");
+                newEmployee.setAddress("Rua Funcionario, 456");
+                newEmployee.setRg("888888888");
+                newEmployee.setImageurl("https://i.imgur.com/2qgrCI2.png");
+                newEmployee.setRole(UserRole.EMPLOYEE);
+                userRepository.save(newEmployee);
+                System.out.println("Usuário 'funcionario@petvita.com' criado com sucesso!");
             }
         };
     }

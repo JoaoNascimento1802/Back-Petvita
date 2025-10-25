@@ -56,12 +56,15 @@ public class VeterinaryService {
     private final PrescriptionRepository prescriptionRepository;
     private final PrescriptionTemplateRepository prescriptionTemplateRepository;
     private final PrescriptionTemplateMapper prescriptionTemplateMapper;
+    private final String DEFAULT_IMAGE_URL = "https://i.imgur.com/2qgrCI2.png";
 
     @Transactional
     public VeterinaryResponseDTO createVeterinary(VeterinaryRequestDTO dto) {
         if (userRepository.findByEmail(dto.email()).isPresent()) {
             throw new IllegalStateException("Este e-mail já está em uso por outro usuário.");
         }
+
+        String imageUrl = (dto.imageurl() != null && !dto.imageurl().isBlank()) ? dto.imageurl() : DEFAULT_IMAGE_URL;
 
         UserModel userAccount = UserModel.builder()
                 .username(dto.name())
@@ -71,7 +74,7 @@ public class VeterinaryService {
                 .role(UserRole.VETERINARY)
                 .address("Não informado")
                 .rg(dto.rg())
-                .imageurl(dto.imageurl())
+                .imageurl(imageUrl)
                 .build();
 
         VeterinaryModel newVeterinary = VeterinaryModel.builder()
@@ -79,7 +82,7 @@ public class VeterinaryService {
                 .crmv(dto.crmv())
                 .specialityenum(dto.specialityenum())
                 .phone(dto.phone())
-                .imageurl(dto.imageurl())
+                .imageurl(imageUrl)
                 .userAccount(userAccount)
                 .build();
 
@@ -242,7 +245,39 @@ public class VeterinaryService {
         return new VeterinarianMonthlyReportDTO(year, month, total, finalized, pending, patients);
     }
 
-    // --- MÉTODOS DA FASE 3 IMPLEMENTADOS ---
+    @Transactional(readOnly = true)
+    public ReportSummaryDTO getCustomReportForVet(UserModel user, LocalDate startDate, LocalDate endDate) {
+        VeterinaryModel vet = veterinaryRepository.findByUserAccount(user)
+                .orElseThrow(() -> new IllegalStateException("Perfil de veterinário não encontrado para este usuário."));
+
+        List<ConsultationModel> filteredConsultations = consultationRepository.findWithFilters(
+                startDate, endDate, vet.getId(), null
+        );
+
+        long total = filteredConsultations.size();
+
+        Map<String, Long> byStatus = filteredConsultations.stream()
+                .collect(Collectors.groupingBy(c -> c.getStatus().getDescricao(), Collectors.counting()));
+
+        Map<String, Long> bySpeciality = filteredConsultations.stream()
+                .collect(Collectors.groupingBy(c -> c.getSpecialityEnum().getDescricao(), Collectors.counting()));
+
+        List<ConsultationModel> finalizedConsultations = filteredConsultations.stream()
+                .filter(c -> c.getStatus() == ConsultationStatus.FINALIZADA && c.getClinicService() != null)
+                .collect(Collectors.toList());
+
+        BigDecimal totalRevenue = finalizedConsultations.stream()
+                .map(c -> c.getClinicService().getPrice())
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        Map<String, BigDecimal> revenueByService = finalizedConsultations.stream()
+                .collect(Collectors.groupingBy(
+                        c -> c.getClinicService().getName(),
+                        Collectors.reducing(BigDecimal.ZERO, c -> c.getClinicService().getPrice(), BigDecimal::add)
+                ));
+
+        return new ReportSummaryDTO(total, byStatus, bySpeciality, totalRevenue, revenueByService);
+    }
 
     @Transactional
     public String addAttachmentToMedicalRecord(Long recordId, MultipartFile file) throws IOException {
@@ -306,18 +341,15 @@ public class VeterinaryService {
         PdfWriter.getInstance(document, baos);
         document.open();
 
-        // Estilos de Fonte
         Font titleFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 18, BaseColor.BLACK);
         Font headerFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 12, BaseColor.DARK_GRAY);
         Font bodyFont = FontFactory.getFont(FontFactory.HELVETICA, 11, BaseColor.BLACK);
 
-        // Título
         Paragraph title = new Paragraph("Prescrição Veterinária", titleFont);
         title.setAlignment(Element.ALIGN_CENTER);
         title.setSpacingAfter(20);
         document.add(title);
 
-        // Informações do Paciente e Tutor
         PdfPTable infoTable = new PdfPTable(2);
         infoTable.setWidthPercentage(100);
         infoTable.setWidths(new float[]{1, 2});
@@ -328,7 +360,6 @@ public class VeterinaryService {
         addCellToTable(infoTable, consultation.getUsuario().getActualUsername(), bodyFont, Element.ALIGN_LEFT);
         document.add(infoTable);
 
-        // Detalhes da Prescrição
         document.add(new Paragraph("Medicação:", headerFont));
         document.add(new Paragraph(prescription.getMedication(), bodyFont));
         document.add(Chunk.NEWLINE);
@@ -343,7 +374,6 @@ public class VeterinaryService {
             document.add(Chunk.NEWLINE);
         }
 
-        // Rodapé com informações do Veterinário
         document.add(Chunk.NEWLINE);
         document.add(Chunk.NEWLINE);
         Paragraph vetInfo = new Paragraph();
@@ -363,38 +393,5 @@ public class VeterinaryService {
         cell.setHorizontalAlignment(alignment);
         cell.setPaddingBottom(5);
         table.addCell(cell);
-    }
-
-    public ReportSummaryDTO getCustomReportForVet(UserModel user, LocalDate startDate, LocalDate endDate) {
-        VeterinaryModel vet = veterinaryRepository.findByUserAccount(user)
-                .orElseThrow(() -> new IllegalStateException("Perfil de veterinário não encontrado para este usuário."));
-
-        List<ConsultationModel> filteredConsultations = consultationRepository.findWithFilters(
-                startDate, endDate, vet.getId(), null
-        );
-
-        long total = filteredConsultations.size();
-
-        Map<String, Long> byStatus = filteredConsultations.stream()
-                .collect(Collectors.groupingBy(c -> c.getStatus().getDescricao(), Collectors.counting()));
-
-        Map<String, Long> bySpeciality = filteredConsultations.stream()
-                .collect(Collectors.groupingBy(c -> c.getSpecialityEnum().getDescricao(), Collectors.counting()));
-
-        List<ConsultationModel> finalizedConsultations = filteredConsultations.stream()
-                .filter(c -> c.getStatus() == ConsultationStatus.FINALIZADA && c.getClinicService() != null)
-                .collect(Collectors.toList());
-
-        BigDecimal totalRevenue = finalizedConsultations.stream()
-                .map(c -> c.getClinicService().getPrice())
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        Map<String, BigDecimal> revenueByService = finalizedConsultations.stream()
-                .collect(Collectors.groupingBy(
-                        c -> c.getClinicService().getName(),
-                        Collectors.reducing(BigDecimal.ZERO, c -> c.getClinicService().getPrice(), BigDecimal::add)
-                ));
-
-        return new ReportSummaryDTO(total, byStatus, bySpeciality, totalRevenue, revenueByService);
     }
 }

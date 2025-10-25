@@ -3,6 +3,7 @@ package sesi.petvita.employee.service;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import sesi.petvita.consultation.dto.ConsultationRequestDTO;
 import sesi.petvita.consultation.model.ConsultationModel;
 import sesi.petvita.consultation.repository.ConsultationRepository;
 import sesi.petvita.consultation.service.ConsultationService;
@@ -44,8 +45,6 @@ public class EmployeeService {
 
         consultation.setStatus(ConsultationStatus.CHECKED_IN);
         consultationRepository.save(consultation);
-
-        // Opcional: Notificar o veterinário que o paciente chegou.
     }
 
     @Transactional
@@ -53,13 +52,12 @@ public class EmployeeService {
         UserModel client = userRepository.findById(dto.usuarioId())
                 .orElseThrow(() -> new NoSuchElementException("Cliente não encontrado com o ID: " + dto.usuarioId()));
 
-        // A lógica de criação de consulta já existe, vamos reutilizá-la
-        // Convertendo o DTO do funcionário para o DTO que o serviço espera
-        sesi.petvita.consultation.dto.ConsultationRequestDTO userDto = new sesi.petvita.consultation.dto.ConsultationRequestDTO(
+        // --- CONSTRUTOR CORRIGIDO PARA CORRESPONDER AO DTO ---
+        ConsultationRequestDTO userDto = new ConsultationRequestDTO(
                 dto.consultationdate(),
                 dto.consultationtime(),
                 dto.clinicServiceId(),
-                null, // Status é definido pelo serviço
+                // O argumento 'status' (que era null) foi removido
                 dto.reason(),
                 dto.observations(),
                 dto.petId(),

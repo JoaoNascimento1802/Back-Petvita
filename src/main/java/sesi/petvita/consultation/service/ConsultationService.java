@@ -41,7 +41,7 @@ public class ConsultationService {
     private final PetRepository petRepository;
     private final VeterinaryRepository veterinaryRepository;
     private final WorkScheduleRepository workScheduleRepository;
-    private final ClinicServiceRepository clinicServiceRepository; // Repositório para buscar os serviços
+    private final ClinicServiceRepository clinicServiceRepository;
     private final ConsultationMapper consultationMapper;
     private final NotificationService notificationService;
     private final EmailService emailService;
@@ -69,7 +69,6 @@ public class ConsultationService {
 
     @Transactional
     public ConsultationResponseDTO create(ConsultationRequestDTO dto, UserModel user) {
-        // 1. Busca o Serviço selecionado para obter o preço e a especialidade
         ClinicService service = clinicServiceRepository.findById(dto.clinicServiceId())
                 .orElseThrow(() -> new NoSuchElementException("Serviço não encontrado com o ID: " + dto.clinicServiceId()));
 
@@ -80,7 +79,6 @@ public class ConsultationService {
             throw new IllegalStateException("Este veterinário não possui uma conta de usuário ativa para receber notificações.");
         }
 
-        // 2. Validação robusta de horário de trabalho
         DayOfWeek dayOfWeek = dto.consultationdate().getDayOfWeek();
         WorkSchedule schedule = workScheduleRepository.findByVeterinaryIdAndDayOfWeek(vet.getId(), dayOfWeek)
                 .orElseThrow(() -> new IllegalStateException("Configuração de agenda não encontrada para este dia."));
@@ -89,7 +87,6 @@ public class ConsultationService {
             throw new IllegalStateException("O veterinário não atende no dia ou horário selecionado. Horário de atendimento: " + schedule.getStartTime() + " - " + schedule.getEndTime());
         }
 
-        // 3. Validação de conflito de horário
         if (consultationRepository.existsByVeterinarioIdAndConsultationdateAndConsultationtime(dto.veterinarioId(), dto.consultationdate(), dto.consultationtime())) {
             throw new IllegalStateException("Conflito de horário. O veterinário já possui uma consulta neste horário.");
         }
@@ -97,11 +94,12 @@ public class ConsultationService {
         PetModel pet = petRepository.findById(dto.petId())
                 .orElseThrow(() -> new NoSuchElementException("Pet não encontrado com o ID: " + dto.petId()));
 
-        // 4. Cria a entidade Consultation, agora passando o serviço completo
-        ConsultationModel newConsultation = consultationMapper.toModel(dto, user, pet, vet, service);
+        // --- CORREÇÃO APLICADA AQUI ---
+        // A ordem dos parâmetros 'pet' e 'user' foi corrigida para corresponder
+        // à assinatura do método no ConsultationMapper.
+        ConsultationModel newConsultation = consultationMapper.toModel(dto, pet, user, vet, service);
         ConsultationModel savedConsultation = consultationRepository.save(newConsultation);
 
-        // 5. Envia notificação por e-mail para o veterinário
         String corpoEmailVet = "Você recebeu uma nova solicitação de consulta de " + user.getActualUsername() + ". Por favor, acesse o painel para aceitar ou recusar.";
         Map<String, Object> emailModel = createEmailModel("Nova Solicitação de Consulta", vet.getName(), corpoEmailVet, savedConsultation);
         emailService.sendHtmlEmailFromTemplate(vet.getUserAccount().getEmail(), "Nova Solicitação de Consulta - Pet Vita", emailModel);

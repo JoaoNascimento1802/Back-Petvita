@@ -16,7 +16,9 @@ public record UserRequestDTO(
         @Email @NotBlank @Size(max = 100)
         String email,
 
-        @NotBlank @Pattern(regexp = "^\\d{2}\\d{8,9}$")
+        // --- CORREÇÃO APLICADA AQUI ---
+        // A regra agora permite apenas números, com 8 a 15 dígitos, sem formato fixo.
+        @NotBlank @Pattern(regexp = "^[0-9]{8,15}$", message = "O telefone deve conter apenas números e ter entre 8 e 15 dígitos.")
         String phone,
 
         @NotBlank @Size(max = 200)

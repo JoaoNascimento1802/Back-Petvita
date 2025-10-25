@@ -46,5 +46,9 @@ public class ServiceScheduleModel {
     private String observations;
 
     @Builder.Default
-    private String status = "AGENDADO"; // Ex: AGENDADO, CANCELADO, FINALIZADO
+    private String status = "PENDENTE";
+
+    // --- NOVO CAMPO ADICIONADO ---
+    @Column(columnDefinition = "TEXT")
+    private String employeeReport;
 }

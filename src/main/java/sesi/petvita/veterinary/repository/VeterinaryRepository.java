@@ -18,5 +18,6 @@ public interface VeterinaryRepository extends JpaRepository<VeterinaryModel,Long
     List<VeterinaryModel> findByNameContainingIgnoreCase(String name);
     List<VeterinaryModel> findBySpecialityenum(SpecialityEnum speciality);
     List<VeterinaryModel> findByNameContainingIgnoreCaseAndSpecialityenum(String name, SpecialityEnum speciality);
+    Optional<VeterinaryModel> findByName(String name);
 }
 

@@ -59,6 +59,8 @@ public interface ConsultationRepository extends JpaRepository<ConsultationModel,
 
     boolean existsByVeterinarioIdAndConsultationdateAndConsultationtime(Long veterinarioId, LocalDate date, LocalTime time);
 
+    List<ConsultationModel> findByConsultationdateAndStatusOrderByConsultationtimeAsc(LocalDate date, ConsultationStatus status);
+
     // ===== MÉTODO QUE ESTAVA FALTANDO, AGORA ADICIONADO =====
     boolean existsByVeterinarioIdAndStatusIn(Long veterinarioId, List<ConsultationStatus> statuses);
 }

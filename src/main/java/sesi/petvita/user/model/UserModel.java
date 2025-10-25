@@ -56,7 +56,6 @@ public class UserModel implements UserDetails {
     @Column(unique = true , nullable = false)
     private String rg;
 
-    @NotBlank
     @Column(nullable = false)
     private String imageurl;
 

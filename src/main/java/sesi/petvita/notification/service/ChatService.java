@@ -44,7 +44,7 @@ public class ChatService {
 
         Map<String, Object> messageData = new HashMap<>();
         messageData.put("senderId", sender.getId());
-        messageData.put("senderName", sender.getActualUsername()); // Corrigido para usar o nome real
+        messageData.put("senderName", sender.getActualUsername());
         messageData.put("content", content);
         messageData.put("timestamp", com.google.cloud.Timestamp.now());
 
@@ -53,7 +53,6 @@ public class ChatService {
                 .collection("mensagens")
                 .add(messageData);
 
-        // ===== CORREÇÃO AQUI: Adicionado o consultationId como terceiro argumento =====
         notificationService.createNotification(receiver, "Você tem uma nova mensagem de " + sender.getActualUsername() + ".", consultationId);
     }
 
@@ -63,7 +62,9 @@ public class ChatService {
     }
 
     private boolean isUserAuthorizedForChat(ConsultationModel consultation, UserModel user) {
-        if (user.getRole() == UserRole.ADMIN) {
+        // --- CORREÇÃO PRINCIPAL AQUI ---
+        // Adicionamos a verificação para permitir que a role EMPLOYEE participe do chat.
+        if (user.getRole() == UserRole.ADMIN || user.getRole() == UserRole.EMPLOYEE) {
             return true;
         }
 

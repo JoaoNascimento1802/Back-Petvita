@@ -54,15 +54,11 @@ public class SecurityConfig {
                         ).permitAll()
                         .requestMatchers(HttpMethod.GET, "/veterinary/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/public/services").permitAll()
-
-                        // --- CORREÇÃO AQUI ---
-                        // Permite que qualquer usuário autenticado veja a lista de funcionários.
                         .requestMatchers(HttpMethod.GET, "/api/employee/all").authenticated()
 
                         // Endpoints para Usuários Autenticados (qualquer role)
                         .requestMatchers("/chat/**", "/notifications/**", "/upload/**").authenticated()
-                        .requestMatchers(HttpMethod.GET, "/users/me", "/consultas/**").authenticated()
-                        .requestMatchers(HttpMethod.PUT, "/users/me").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/users/me").authenticated()
 
                         // Endpoints para Role "USER"
                         .requestMatchers("/pets/**").hasAnyRole("USER", "EMPLOYEE", "ADMIN")
@@ -74,16 +70,17 @@ public class SecurityConfig {
 
                         // Endpoints para Role "VETERINARY"
                         .requestMatchers("/vet/**").hasRole("VETERINARY")
-                        .requestMatchers("/veterinary/medical-records/**").hasRole("VETERINARY")
-                        .requestMatchers("/veterinary/consultations/**").hasRole("VETERINARY")
-                        .requestMatchers("/veterinary/prescription-templates/**").hasRole("VETERINARY")
-                        .requestMatchers("/veterinary/prescriptions/**").hasRole("VETERINARY")
                         .requestMatchers(
                                 "/consultas/{id}/accept",
                                 "/consultas/{id}/reject",
                                 "/consultas/{id}/finalize"
                         ).hasRole("VETERINARY")
                         .requestMatchers(HttpMethod.PUT, "/consultas/{id}/report").hasRole("VETERINARY")
+
+                        // --- CORREÇÃO CRÍTICA AQUI ---
+                        // Regra específica para permitir que EMPLOYEE e ADMIN acessem a lista de consultas.
+                        // Esta regra deve vir ANTES da regra geral "/admin/**".
+                        .requestMatchers(HttpMethod.GET, "/admin/consultations").hasAnyRole("ADMIN", "EMPLOYEE")
 
                         // Endpoints para Role "EMPLOYEE"
                         .requestMatchers("/api/employee/**").hasAnyRole("EMPLOYEE", "ADMIN")

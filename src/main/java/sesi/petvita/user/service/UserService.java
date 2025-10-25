@@ -43,6 +43,7 @@ public class UserService {
     private final CloudinaryService cloudinaryService;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final EmailService emailService;
+    private final String DEFAULT_IMAGE_URL = "https://i.imgur.com/2qgrCI2.png";
 
     @Transactional
     public UserResponseDTO updateUserProfile(Long userId, UserProfileUpdateDTO dto) {
@@ -76,6 +77,10 @@ public class UserService {
         user.setRole(UserRole.USER);
         user.setPassword(passwordEncoder.encode(requestDTO.password()));
 
+        if (user.getImageurl() == null || user.getImageurl().isBlank()) {
+            user.setImageurl(DEFAULT_IMAGE_URL);
+        }
+
         UserModel savedUser = userRepository.save(user);
         return userMapper.toDTO(savedUser);
     }
@@ -88,8 +93,8 @@ public class UserService {
         user.setPhone(dto.phone());
         user.setAddress(dto.address());
         user.setRg(dto.rg());
-        user.setImageurl(dto.imageurl() != null && !dto.imageurl().isEmpty() ? dto.imageurl() : "https://i.imgur.com/2qgrCI2.png");
         user.setRole(dto.role());
+        user.setImageurl(dto.imageurl() != null && !dto.imageurl().isEmpty() ? dto.imageurl() : DEFAULT_IMAGE_URL);
 
         UserModel savedUser = userRepository.save(user);
         return userMapper.toDTO(savedUser);
@@ -136,13 +141,11 @@ public class UserService {
     public void requestPasswordReset(String userEmail) {
         UserModel user = userRepository.findByEmail(userEmail)
                 .orElseThrow(() -> new NoSuchElementException("Utilizador não encontrado com o e-mail: " + userEmail));
-
         String token = UUID.randomUUID().toString();
         PasswordResetToken resetToken = new PasswordResetToken(token, user);
         passwordResetTokenRepository.save(resetToken);
 
         String resetUrl = "https://vet-clinic-api-front.vercel.app/reset-password?token=" + token;
-
         Map<String, Object> emailModel = new HashMap<>();
         emailModel.put("titulo", "Redefinição de Senha");
         emailModel.put("nomeUsuario", user.getActualUsername());
@@ -156,7 +159,6 @@ public class UserService {
     public void resetPassword(String token, String newPassword) {
         PasswordResetToken resetToken = passwordResetTokenRepository.findByToken(token)
                 .orElseThrow(() -> new IllegalStateException("Token de redefinição inválido ou expirado."));
-
         if (resetToken.getExpiryDate().isBefore(LocalDateTime.now())) {
             passwordResetTokenRepository.delete(resetToken);
             throw new IllegalStateException("Token de redefinição expirado.");
@@ -165,15 +167,12 @@ public class UserService {
         UserModel user = resetToken.getUser();
         user.setPassword(passwordEncoder.encode(newPassword));
         userRepository.save(user);
-
         passwordResetTokenRepository.delete(resetToken);
     }
 
-    // --- NOVO MÉTODO PARA BUSCAR UTILIZADORES POR ROLE ---
     public List<UserResponseDTO> findUsersByRole(UserRole role) {
         return userRepository.findByRole(role).stream()
                 .map(userMapper::toDTO)
                 .collect(Collectors.toList());
     }
-    // -----------------------------------------
 }

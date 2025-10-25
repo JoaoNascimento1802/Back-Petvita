@@ -10,20 +10,13 @@ public record ServiceScheduleResponseDTO(
         LocalTime scheduleTime,
         String status,
         String observations,
-
-        // Pet Info
+        String employeeReport, // --- NOVO CAMPO ADICIONADO ---
         Long petId,
         String petName,
-
-        // Client Info
         Long clientId,
         String clientName,
-
-        // Employee Info
         Long employeeId,
         String employeeName,
-
-        // Service Info
         Long serviceId,
         String serviceName,
         BigDecimal servicePrice
