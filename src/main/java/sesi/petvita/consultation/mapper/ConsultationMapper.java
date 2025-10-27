@@ -23,12 +23,10 @@ public class ConsultationMapper {
                 .veterinario(vet)
                 .clinicService(service)
                 .specialityEnum(vet.getSpecialityenum())
-                // O status é definido por padrão na entidade, não precisa ser setado aqui
                 .build();
     }
 
     public ConsultationResponseDTO toDTO(ConsultationModel model) {
-        // --- CONSTRUTOR CORRIGIDO PARA CORRESPONDER AO DTO ---
         return new ConsultationResponseDTO(
                 model.getId(),
                 model.getConsultationdate(),
@@ -44,6 +42,7 @@ public class ConsultationMapper {
                 model.getVeterinario().getId(),
                 model.getVeterinario().getName(),
                 model.getClinicService().getName(),
+                model.getClinicService().getPrice(), // <-- LINHA ADICIONADA AQUI
                 model.getSpecialityEnum()
         );
     }

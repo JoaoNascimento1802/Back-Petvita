@@ -3,6 +3,7 @@ package sesi.petvita.consultation.dto;
 import sesi.petvita.consultation.status.ConsultationStatus;
 import sesi.petvita.veterinary.speciality.SpecialityEnum;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
 
@@ -21,5 +22,6 @@ public record ConsultationResponseDTO(
         Long veterinaryId,
         String veterinaryName,
         String serviceName,
+        BigDecimal servicePrice,
         SpecialityEnum speciality
 ) {}

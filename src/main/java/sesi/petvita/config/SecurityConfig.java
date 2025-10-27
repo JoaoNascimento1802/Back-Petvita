@@ -50,42 +50,52 @@ public class SecurityConfig {
                                 "/auth/**",
                                 "/users/register",
                                 "/v3/api-docs/**",
-                                "/swagger-ui/**"
+                                "/swagger-ui/**",
+                                "/api/public/**"
                         ).permitAll()
                         .requestMatchers(HttpMethod.GET, "/veterinary/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/public/services").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/employee/all").authenticated()
 
-                        // Endpoints para Usuários Autenticados (qualquer role)
-                        .requestMatchers("/chat/**", "/notifications/**", "/upload/**").authenticated()
-                        .requestMatchers(HttpMethod.GET, "/users/me").authenticated()
-
-                        // Endpoints para Role "USER"
-                        .requestMatchers("/pets/**").hasAnyRole("USER", "EMPLOYEE", "ADMIN")
-                        .requestMatchers("/api/service-schedules/**").hasAnyRole("USER", "EMPLOYEE", "ADMIN")
-                        .requestMatchers(HttpMethod.POST, "/consultas").hasRole("USER")
-                        .requestMatchers(HttpMethod.PUT, "/consultas/{id}").hasRole("USER")
-                        .requestMatchers(HttpMethod.POST, "/consultas/{id}/cancel").hasRole("USER")
-                        .requestMatchers(HttpMethod.POST, "/veterinary/{id}/rate").hasRole("USER")
-
-                        // Endpoints para Role "VETERINARY"
-                        .requestMatchers("/vet/**").hasRole("VETERINARY")
+                        // Endpoints Autenticados (Qualquer Role)
                         .requestMatchers(
-                                "/consultas/{id}/accept",
-                                "/consultas/{id}/reject",
-                                "/consultas/{id}/finalize"
-                        ).hasRole("VETERINARY")
-                        .requestMatchers(HttpMethod.PUT, "/consultas/{id}/report").hasRole("VETERINARY")
+                                "/users/me",
+                                "/upload/**",
+                                "/chat/**",
+                                "/notifications/**"
+                        ).authenticated()
 
-                        // --- CORREÇÃO CRÍTICA AQUI ---
-                        // Regra específica para permitir que EMPLOYEE e ADMIN acessem a lista de consultas.
-                        // Esta regra deve vir ANTES da regra geral "/admin/**".
+                        // Regras específicas de AÇÃO para o VETERINÁRIO
+                        .requestMatchers(
+                                "/consultas/{id:[0-9]+}/accept",
+                                "/consultas/{id:[0-9]+}/reject",
+                                "/consultas/{id:[0-9]+}/finalize"
+                        ).hasRole("VETERINARY")
+                        .requestMatchers(HttpMethod.PUT, "/consultas/{id:[0-9]+}/report").hasRole("VETERINARY")
+
+                        // --- CORREÇÃO APLICADA AQUI ---
+                        // Regras de AÇÃO que ambos podem fazer (USER e VETERINARY)
+                        .requestMatchers(HttpMethod.POST, "/consultas/{id:[0-9]+}/cancel").hasAnyRole("USER", "VETERINARY")
+
+                        // Regras específicas de AÇÃO para o USUÁRIO
+                        .requestMatchers(HttpMethod.PUT, "/consultas/{id:[0-9]+}").hasRole("USER") // Edição pelo usuário
+
+                        // Regra de VISUALIZAÇÃO de detalhes, permitida para múltiplos papéis
+                        .requestMatchers(HttpMethod.GET, "/consultas/{id:[0-9]+}").hasAnyRole("USER", "VETERINARY", "ADMIN", "EMPLOYEE")
+
+                        // Demais endpoints do Cliente (USER)
+                        .requestMatchers("/pets/**", "/agendar-consulta").hasRole("USER")
+                        .requestMatchers("/consultas/my-consultations").hasRole("USER")
+                        .requestMatchers(HttpMethod.POST, "/consultas").hasRole("USER")
+                        .requestMatchers(HttpMethod.POST, "/veterinary/{id:[0-9]+}/rate").hasRole("USER")
+
+                        // Endpoints do Veterinário (VETERINARY)
+                        .requestMatchers("/vet/**").hasRole("VETERINARY")
+
+                        // Endpoints do Funcionário (EMPLOYEE)
+                        .requestMatchers("/api/employee/**").hasAnyRole("EMPLOYEE", "ADMIN")
                         .requestMatchers(HttpMethod.GET, "/admin/consultations").hasAnyRole("ADMIN", "EMPLOYEE")
 
-                        // Endpoints para Role "EMPLOYEE"
-                        .requestMatchers("/api/employee/**").hasAnyRole("EMPLOYEE", "ADMIN")
-
-                        // Endpoints para Role "ADMIN"
+                        // Endpoints do Administrador (ADMIN)
                         .requestMatchers("/admin/**").hasRole("ADMIN")
                         .requestMatchers("/reports/**").hasRole("ADMIN")
 
@@ -102,7 +112,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of(allowedOrigins));
+        configuration.setAllowedOrigins(Arrays.asList(allowedOrigins));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);

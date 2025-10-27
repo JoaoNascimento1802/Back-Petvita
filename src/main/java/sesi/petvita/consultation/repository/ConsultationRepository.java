@@ -1,6 +1,5 @@
 package sesi.petvita.consultation.repository;
 
-
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -13,8 +12,31 @@ import sesi.petvita.veterinary.speciality.SpecialityEnum;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.Optional;
 
 public interface ConsultationRepository extends JpaRepository<ConsultationModel, Long> {
+
+    // --- CORREÇÃO PARA findById ---
+    // Este novo método busca a consulta pelo ID e já carrega (FETCH) todas as entidades relacionadas.
+    @Query("SELECT c FROM ConsultationModel c " +
+            "JOIN FETCH c.pet " +
+            "JOIN FETCH c.usuario " +
+            "JOIN FETCH c.veterinario v " +
+            "JOIN FETCH v.userAccount " +
+            "JOIN FETCH c.clinicService " +
+            "WHERE c.id = :id")
+    Optional<ConsultationModel> findByIdWithDetails(@Param("id") Long id);
+
+
+    @Query("SELECT c FROM ConsultationModel c " +
+            "JOIN FETCH c.pet " +
+            "JOIN FETCH c.usuario " +
+            "JOIN FETCH c.veterinario v " +
+            "JOIN FETCH v.userAccount " +
+            "JOIN FETCH c.clinicService " +
+            "WHERE c.usuario.id = :usuarioId")
+    List<ConsultationModel> findByUsuarioIdWithDetails(@Param("usuarioId") Long usuarioId);
+
 
     @Query("SELECT c FROM ConsultationModel c WHERE " +
             "(:startDate IS NULL OR c.consultationdate >= :startDate) AND " +
@@ -61,6 +83,5 @@ public interface ConsultationRepository extends JpaRepository<ConsultationModel,
 
     List<ConsultationModel> findByConsultationdateAndStatusOrderByConsultationtimeAsc(LocalDate date, ConsultationStatus status);
 
-    // ===== MÉTODO QUE ESTAVA FALTANDO, AGORA ADICIONADO =====
     boolean existsByVeterinarioIdAndStatusIn(Long veterinarioId, List<ConsultationStatus> statuses);
 }

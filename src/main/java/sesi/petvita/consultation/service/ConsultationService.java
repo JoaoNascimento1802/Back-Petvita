@@ -71,10 +71,8 @@ public class ConsultationService {
     public ConsultationResponseDTO create(ConsultationRequestDTO dto, UserModel user) {
         ClinicService service = clinicServiceRepository.findById(dto.clinicServiceId())
                 .orElseThrow(() -> new NoSuchElementException("Serviço não encontrado com o ID: " + dto.clinicServiceId()));
-
         VeterinaryModel vet = veterinaryRepository.findById(dto.veterinarioId())
                 .orElseThrow(() -> new NoSuchElementException("Veterinário não encontrado com o ID: " + dto.veterinarioId()));
-
         if (vet.getUserAccount() == null) {
             throw new IllegalStateException("Este veterinário não possui uma conta de usuário ativa para receber notificações.");
         }
@@ -82,7 +80,6 @@ public class ConsultationService {
         DayOfWeek dayOfWeek = dto.consultationdate().getDayOfWeek();
         WorkSchedule schedule = workScheduleRepository.findByVeterinaryIdAndDayOfWeek(vet.getId(), dayOfWeek)
                 .orElseThrow(() -> new IllegalStateException("Configuração de agenda não encontrada para este dia."));
-
         if (!schedule.isWorking() || dto.consultationtime().isBefore(schedule.getStartTime()) || dto.consultationtime().isAfter(schedule.getEndTime().minusMinutes(30))) {
             throw new IllegalStateException("O veterinário não atende no dia ou horário selecionado. Horário de atendimento: " + schedule.getStartTime() + " - " + schedule.getEndTime());
         }
@@ -94,16 +91,11 @@ public class ConsultationService {
         PetModel pet = petRepository.findById(dto.petId())
                 .orElseThrow(() -> new NoSuchElementException("Pet não encontrado com o ID: " + dto.petId()));
 
-        // --- CORREÇÃO APLICADA AQUI ---
-        // A ordem dos parâmetros 'pet' e 'user' foi corrigida para corresponder
-        // à assinatura do método no ConsultationMapper.
         ConsultationModel newConsultation = consultationMapper.toModel(dto, pet, user, vet, service);
         ConsultationModel savedConsultation = consultationRepository.save(newConsultation);
-
         String corpoEmailVet = "Você recebeu uma nova solicitação de consulta de " + user.getActualUsername() + ". Por favor, acesse o painel para aceitar ou recusar.";
         Map<String, Object> emailModel = createEmailModel("Nova Solicitação de Consulta", vet.getName(), corpoEmailVet, savedConsultation);
         emailService.sendHtmlEmailFromTemplate(vet.getUserAccount().getEmail(), "Nova Solicitação de Consulta - Pet Vita", emailModel);
-
         return consultationMapper.toDTO(savedConsultation);
     }
 
@@ -116,7 +108,6 @@ public class ConsultationService {
         consultation.setStatus(ConsultationStatus.AGENDADA);
         consultationRepository.save(consultation);
         notificationService.createNotification(consultation.getUsuario(), "Sua consulta para " + consultation.getPet().getName() + " foi agendada!", consultation.getId());
-
         String corpoEmailCliente = "Sua solicitação de consulta foi aceita pelo(a) Dr(a). " + consultation.getVeterinario().getName() + ". Estamos ansiosos para ver você e seu pet!";
         Map<String, Object> emailModel = createEmailModel("Consulta Confirmada!", consultation.getUsuario().getActualUsername(), corpoEmailCliente, consultation);
         emailService.sendHtmlEmailFromTemplate(consultation.getUsuario().getEmail(), "Sua Consulta foi Confirmada - Pet Vita", emailModel);
@@ -131,7 +122,6 @@ public class ConsultationService {
         consultation.setStatus(ConsultationStatus.RECUSADA);
         consultationRepository.save(consultation);
         notificationService.createNotification(consultation.getUsuario(), "Sua solicitação de consulta para " + consultation.getPet().getName() + " foi recusada.", consultation.getId());
-
         String corpo = "Infelizmente, sua solicitação de consulta para o pet " + consultation.getPet().getName() + " não pôde ser aceita no momento. Por favor, tente agendar um novo horário.";
         Map<String, Object> emailModel = createEmailModel("Solicitação de Consulta Recusada", consultation.getUsuario().getActualUsername(), corpo, null);
         emailService.sendHtmlEmailFromTemplate(consultation.getUsuario().getEmail(), "Solicitação de Consulta Recusada - Pet Vita", emailModel);
@@ -146,7 +136,6 @@ public class ConsultationService {
 
         UserModel targetUserToNotify;
         String recipientEmail, recipientName, emailTitle, emailBody;
-
         if (userCanceling.getRole() == UserRole.USER) {
             if (!consultation.getUsuario().getId().equals(userCanceling.getId())) {
                 throw new IllegalStateException("Você só pode cancelar suas próprias consultas.");
@@ -190,11 +179,9 @@ public class ConsultationService {
         if (dto.observations() != null) consultation.setObservations(dto.observations());
 
         ConsultationModel updatedConsultation = consultationRepository.save(consultation);
-
         String corpo = "Os detalhes de uma consulta agendada com você foram alterados pelo cliente. Verifique as novas informações:";
         Map<String, Object> emailModel = createEmailModel("Consulta Alterada pelo Cliente", updatedConsultation.getVeterinario().getName(), corpo, updatedConsultation);
         emailService.sendHtmlEmailFromTemplate(updatedConsultation.getVeterinario().getUserAccount().getEmail(), "Alteração de Consulta - Pet Vita", emailModel);
-
         return consultationMapper.toDTO(updatedConsultation);
     }
 
@@ -220,20 +207,32 @@ public class ConsultationService {
         notificationService.createNotification(consultation.getUsuario(), "O relatório da sua consulta para " + consultation.getPet().getName() + " está disponível.", consultation.getId());
     }
 
+    @Transactional(readOnly = true)
     public List<ConsultationResponseDTO> findAllForAdmin() {
         return consultationRepository.findAll().stream().map(consultationMapper::toDTO).collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
     public List<ConsultationResponseDTO> findForAuthenticatedUser(UserModel user) {
-        return consultationRepository.findByUsuarioId(user.getId()).stream().map(consultationMapper::toDTO).collect(Collectors.toList());
+        // CORREÇÃO: Utiliza o novo método com JOIN FETCH para evitar LazyInitializationException
+        return consultationRepository.findByUsuarioIdWithDetails(user.getId())
+                .stream()
+                .map(consultationMapper::toDTO)
+                .collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
     public ConsultationResponseDTO findById(Long id) {
-        return consultationRepository.findById(id).map(consultationMapper::toDTO).orElseThrow(() -> new NoSuchElementException("Consulta não encontrada com o ID: " + id));
+        // CORREÇÃO: Utiliza o novo método com JOIN FETCH para evitar LazyInitializationException
+        return consultationRepository.findByIdWithDetails(id)
+                .map(consultationMapper::toDTO)
+                .orElseThrow(() -> new NoSuchElementException("Consulta não encontrada com o ID: " + id));
     }
 
+    @Transactional(readOnly = true)
     public List<ConsultationResponseDTO> findForAuthenticatedVeterinary(UserModel user) {
         VeterinaryModel vet = veterinaryRepository.findByUserAccount(user).orElseThrow(() -> new NoSuchElementException("Perfil de veterinário não encontrado."));
+        // NOTA: Para máxima performance, um método com JOIN FETCH seria ideal aqui também.
         return consultationRepository.findByVeterinarioId(vet.getId()).stream().map(consultationMapper::toDTO).collect(Collectors.toList());
     }
 
