@@ -6,15 +6,16 @@ import com.itextpdf.text.pdf.PdfPTable;
 import com.itextpdf.text.pdf.PdfWriter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import sesi.petvita.consultation.model.ConsultationModel;
 import sesi.petvita.consultation.repository.ConsultationRepository;
 import sesi.petvita.veterinary.speciality.SpecialityEnum;
 
 import java.io.ByteArrayOutputStream;
-import java.time.LocalDate; // ADICIONADO
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors; // ADICIONADO
 
 @RequiredArgsConstructor
 @Service
@@ -22,15 +23,17 @@ public class ReportService {
 
     private final ConsultationRepository consultationRepository;
 
-    // MÉTODO ATUALIZADO para incluir os filtros de data
+    // Adiciona a anotação @Transactional(readOnly = true) para manter a sessão do BD aberta durante a execução do método
+    @Transactional(readOnly = true)
     public byte[] generateConsultationReportPdf(
-            Optional<LocalDate> startDate,
-            Optional<LocalDate> endDate,
+            Optional<LocalDate> startDateOpt,
+            Optional<LocalDate> endDateOpt,
             Optional<Long> veterinarioId,
             Optional<SpecialityEnum> speciality) throws DocumentException {
 
         Document document = new Document();
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
         try {
             PdfWriter.getInstance(document, baos);
@@ -39,9 +42,8 @@ public class ReportService {
             Font fontTitle = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 20, BaseColor.BLACK);
             Paragraph title = new Paragraph("Relatório de Consultas", fontTitle);
 
-            // Adiciona informações sobre os filtros de data no título do PDF
-            if (startDate.isPresent() && endDate.isPresent()) {
-                title.add(new Chunk("\nPeríodo: " + startDate.get() + " a " + endDate.get()));
+            if (startDateOpt.isPresent() && endDateOpt.isPresent()) {
+                title.add(new Chunk("\nPeríodo: " + startDateOpt.get().format(formatter) + " a " + endDateOpt.get().format(formatter)));
             }
 
             title.setAlignment(Element.ALIGN_CENTER);
@@ -57,39 +59,34 @@ public class ReportService {
             table.setWidths(columnWidths);
 
             Font fontHeader = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 12, BaseColor.WHITE);
-            BaseColor headerBgColor = new BaseColor(52, 152, 219);
+            BaseColor headerBgColor = new BaseColor(74, 85, 104); // Cor mais sóbria
             addTableHeader(table, "Data", fontHeader, headerBgColor);
             addTableHeader(table, "Hora", fontHeader, headerBgColor);
-            addTableHeader(table, "Paciente", fontHeader, headerBgColor);
+            addTableHeader(table, "Paciente (Pet)", fontHeader, headerBgColor);
             addTableHeader(table, "Veterinário", fontHeader, headerBgColor);
             addTableHeader(table, "Especialidade", fontHeader, headerBgColor);
 
-            // LÓGICA DE FILTRAGEM ATUALIZADA
-            // Primeiro, buscamos todos os dados. Em um sistema com muitos dados,
-            // o ideal seria criar um método no repositório que já fizesse essa filtragem complexa.
-            List<ConsultationModel> allConsultations = consultationRepository.findAll();
-
-            List<ConsultationModel> filteredConsultations = allConsultations.stream()
-                    .filter(c -> startDate.map(sd -> !c.getConsultationdate().isBefore(sd)).orElse(true))
-                    .filter(c -> endDate.map(ed -> !c.getConsultationdate().isAfter(ed)).orElse(true))
-                    .filter(c -> veterinarioId.map(id -> c.getVeterinario().getId().equals(id)).orElse(true))
-                    .filter(c -> speciality.map(s -> c.getSpecialityEnum().equals(s)).orElse(true))
-                    .collect(Collectors.toList());
+            // Utiliza o método do repositório que já faz o JOIN FETCH, garantindo que os dados venham carregados
+            List<ConsultationModel> filteredConsultations = consultationRepository.findWithFilters(
+                    startDateOpt.orElse(null),
+                    endDateOpt.orElse(null),
+                    veterinarioId.orElse(null),
+                    speciality.orElse(null)
+            );
 
             Font fontCell = FontFactory.getFont(FontFactory.HELVETICA, 10, BaseColor.BLACK);
-            for (ConsultationModel consultation : filteredConsultations) { // Itera sobre a lista JÁ FILTRADA
+            for (ConsultationModel consultation : filteredConsultations) {
+                // Como usamos JOIN FETCH, o acesso aos dados relacionados agora é seguro.
+                String petName = consultation.getPet().getName();
+                String vetName = consultation.getVeterinario().getName();
 
-                String petName = consultation.getPet() != null ? consultation.getPet().getName() : "N/A";
-                String vetName = consultation.getVeterinario() != null ? consultation.getVeterinario().getName() : "N/A";
-
-                addTableCell(table, consultation.getConsultationdate().toString(), fontCell);
+                addTableCell(table, consultation.getConsultationdate().format(formatter), fontCell);
                 addTableCell(table, consultation.getConsultationtime().toString(), fontCell);
                 addTableCell(table, petName, fontCell);
                 addTableCell(table, vetName, fontCell);
-                addTableCell(table, consultation.getSpecialityEnum().name(), fontCell);
+                addTableCell(table, consultation.getSpecialityEnum().getDescricao(), fontCell);
             }
             document.add(table);
-
             document.close();
             return baos.toByteArray();
 

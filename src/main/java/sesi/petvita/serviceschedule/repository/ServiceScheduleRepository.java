@@ -28,4 +28,5 @@ public interface ServiceScheduleRepository extends JpaRepository<ServiceSchedule
     // Métodos existentes para o dashboard
     long countByEmployeeIdAndScheduleDate(Long employeeId, LocalDate date);
     long countByEmployeeIdAndStatusAndScheduleDateBetween(Long employeeId, String status, LocalDate startDate, LocalDate endDate);
+    List<ServiceScheduleModel> findByClientIdOrderByScheduleDateDesc(Long clientId);
 }

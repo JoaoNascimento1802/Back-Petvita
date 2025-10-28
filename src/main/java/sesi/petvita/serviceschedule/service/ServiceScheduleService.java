@@ -59,6 +59,14 @@ public class ServiceScheduleService {
     }
 
     @Transactional(readOnly = true)
+    public List<ServiceScheduleResponseDTO> findForAuthenticatedUser(UserModel client) {
+        return scheduleRepository.findByClientIdOrderByScheduleDateDesc(client.getId())
+                .stream()
+                .map(mapper::toDTO)
+                .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
     public List<ServiceScheduleResponseDTO> findForEmployee(UserModel employee) {
         if (employee.getRole() != UserRole.EMPLOYEE && employee.getRole() != UserRole.ADMIN) {
             throw new AccessDeniedException("Acesso negado.");

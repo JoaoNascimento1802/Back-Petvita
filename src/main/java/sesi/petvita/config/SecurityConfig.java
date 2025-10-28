@@ -49,6 +49,9 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/auth/**",
                                 "/users/register",
+                                // --- CORREÇÃO APLICADA AQUI ---
+                                // Permite o cadastro de novos veterinários sem autenticação.
+                                "/veterinary",
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
                                 "/api/public/**"
@@ -64,7 +67,7 @@ public class SecurityConfig {
                                 "/notifications/**"
                         ).authenticated()
 
-                        // Regras específicas de AÇÃO para o VETERINÁRIO
+                        // Regras de AÇÃO para o VETERINÁRIO
                         .requestMatchers(
                                 "/consultas/{id:[0-9]+}/accept",
                                 "/consultas/{id:[0-9]+}/reject",
@@ -72,18 +75,17 @@ public class SecurityConfig {
                         ).hasRole("VETERINARY")
                         .requestMatchers(HttpMethod.PUT, "/consultas/{id:[0-9]+}/report").hasRole("VETERINARY")
 
-                        // --- CORREÇÃO APLICADA AQUI ---
-                        // Regras de AÇÃO que ambos podem fazer (USER e VETERINARY)
+                        // Regras de AÇÃO que ambos (USER e VETERINARY) podem fazer
                         .requestMatchers(HttpMethod.POST, "/consultas/{id:[0-9]+}/cancel").hasAnyRole("USER", "VETERINARY")
 
                         // Regras específicas de AÇÃO para o USUÁRIO
-                        .requestMatchers(HttpMethod.PUT, "/consultas/{id:[0-9]+}").hasRole("USER") // Edição pelo usuário
+                        .requestMatchers(HttpMethod.PUT, "/consultas/{id:[0-9]+}").hasRole("USER")
 
-                        // Regra de VISUALIZAÇÃO de detalhes, permitida para múltiplos papéis
+                        // Regra de VISUALIZAÇÃO de detalhes
                         .requestMatchers(HttpMethod.GET, "/consultas/{id:[0-9]+}").hasAnyRole("USER", "VETERINARY", "ADMIN", "EMPLOYEE")
 
                         // Demais endpoints do Cliente (USER)
-                        .requestMatchers("/pets/**", "/agendar-consulta").hasRole("USER")
+                        .requestMatchers("/pets/**", "/agendar-consulta", "/api/service-schedules/**").hasRole("USER")
                         .requestMatchers("/consultas/my-consultations").hasRole("USER")
                         .requestMatchers(HttpMethod.POST, "/consultas").hasRole("USER")
                         .requestMatchers(HttpMethod.POST, "/veterinary/{id:[0-9]+}/rate").hasRole("USER")

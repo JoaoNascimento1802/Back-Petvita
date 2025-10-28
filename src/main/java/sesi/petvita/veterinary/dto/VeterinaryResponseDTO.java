@@ -7,6 +7,7 @@ public record VeterinaryResponseDTO(
         String name,
         String email,
         String crmv,
+        String rg,
         SpecialityEnum specialityenum,
         String phone,
         String imageurl,

@@ -7,17 +7,17 @@ import sesi.petvita.veterinary.model.VeterinaryModel;
 @Component
 public class VeterinaryMapper {
 
-    // O método toModel não é mais necessário aqui, pois a lógica está no service.
-
     public VeterinaryResponseDTO toDTO(VeterinaryModel model) {
-        // Busca o email da conta de usuário associada
+        // Acessa a conta de usuário associada para buscar os dados necessários
         String email = (model.getUserAccount() != null) ? model.getUserAccount().getEmail() : null;
+        String rg = (model.getUserAccount() != null) ? model.getUserAccount().getRg() : null; // CORREÇÃO APLICADA AQUI
 
         return new VeterinaryResponseDTO(
                 model.getId(),
                 model.getName(),
-                email, // Usa o email do userAccount
+                email,
                 model.getCrmv(),
+                rg, // O campo RG agora é mapeado corretamente
                 model.getSpecialityenum(),
                 model.getPhone(),
                 model.getImageurl(),

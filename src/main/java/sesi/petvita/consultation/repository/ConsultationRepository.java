@@ -38,7 +38,10 @@ public interface ConsultationRepository extends JpaRepository<ConsultationModel,
     List<ConsultationModel> findByUsuarioIdWithDetails(@Param("usuarioId") Long usuarioId);
 
 
-    @Query("SELECT c FROM ConsultationModel c WHERE " +
+    @Query("SELECT c FROM ConsultationModel c " +
+            "JOIN FETCH c.pet " +
+            "JOIN FETCH c.veterinario " +
+            "WHERE " +
             "(:startDate IS NULL OR c.consultationdate >= :startDate) AND " +
             "(:endDate IS NULL OR c.consultationdate <= :endDate) AND " +
             "(:veterinaryId IS NULL OR c.veterinario.id = :veterinaryId) AND " +
