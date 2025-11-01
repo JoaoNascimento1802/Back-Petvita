@@ -2,6 +2,7 @@ package sesi.petvita.veterinary.model;
 
 import jakarta.persistence.*;
 import lombok.*;
+import sesi.petvita.user.model.UserModel; // Importar UserModel
 import java.time.DayOfWeek;
 import java.time.LocalTime;
 
@@ -16,9 +17,10 @@ public class WorkSchedule {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    // ALTERAÇÃO: Referenciar UserModel diretamente
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "veterinary_id", nullable = false)
-    private VeterinaryModel veterinary;
+    @JoinColumn(name = "professional_user_id", nullable = false)
+    private UserModel professionalUser;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

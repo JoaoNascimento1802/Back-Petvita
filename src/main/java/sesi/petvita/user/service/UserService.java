@@ -22,8 +22,12 @@ import sesi.petvita.user.mapper.UserMapper;
 import sesi.petvita.user.model.UserModel;
 import sesi.petvita.user.repository.UserRepository;
 import sesi.petvita.user.role.UserRole;
+import sesi.petvita.veterinary.model.WorkSchedule;
+import sesi.petvita.veterinary.repository.WorkScheduleRepository;
 
 import java.io.IOException;
+import java.time.DayOfWeek;
+import java.time.LocalTime;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
@@ -43,7 +47,23 @@ public class UserService {
     private final CloudinaryService cloudinaryService;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final EmailService emailService;
+    private final WorkScheduleRepository workScheduleRepository;
+
     private final String DEFAULT_IMAGE_URL = "https://i.imgur.com/2qgrCI2.png";
+
+    // Método auxiliar para criar horários padrão
+    private void initializeWorkScheduleFor(UserModel userAccount) {
+        for (DayOfWeek day : DayOfWeek.values()) {
+            WorkSchedule schedule = WorkSchedule.builder()
+                    .professionalUser(userAccount) // Associa ao UserModel
+                    .dayOfWeek(day)
+                    .startTime(LocalTime.of(9, 0))
+                    .endTime(LocalTime.of(18, 0))
+                    .isWorking(day != DayOfWeek.SATURDAY && day != DayOfWeek.SUNDAY)
+                    .build();
+            workScheduleRepository.save(schedule);
+        }
+    }
 
     @Transactional
     public UserResponseDTO updateUserProfile(Long userId, UserProfileUpdateDTO dto) {
@@ -85,6 +105,7 @@ public class UserService {
         return userMapper.toDTO(savedUser);
     }
 
+    @Transactional // Garante que a criação do usuário e dos horários ocorra na mesma transação
     public UserResponseDTO createUserByAdmin(AdminUserCreateRequestDTO dto) {
         UserModel user = new UserModel();
         user.setUsername(dto.username());
@@ -97,9 +118,16 @@ public class UserService {
         user.setImageurl(dto.imageurl() != null && !dto.imageurl().isEmpty() ? dto.imageurl() : DEFAULT_IMAGE_URL);
 
         UserModel savedUser = userRepository.save(user);
+
+        // Se o usuário criado for um profissional (Vet ou Funcionário), cria horários para ele.
+        if (dto.role() == UserRole.EMPLOYEE || dto.role() == UserRole.VETERINARY) {
+            initializeWorkScheduleFor(savedUser);
+        }
+
         return userMapper.toDTO(savedUser);
     }
 
+    @Transactional
     public UserResponseDTO updateUser(Long id, UserUpdateRequestDTO requestDTO) {
         UserModel existingUser = userRepository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("Utilizador não encontrado com o ID: " + id));
@@ -115,9 +143,12 @@ public class UserService {
         return userMapper.toDTO(savedUser);
     }
 
+    @Transactional
     public void deleteUser(Long id) {
         UserModel user = userRepository.findById(id)
+                // --- ERRO DE DIGITAÇÃO CORRIGIDO AQUI ---
                 .orElseThrow(() -> new NoSuchElementException("Utilizador não encontrado com o ID: " + id));
+
         if (user.getImagePublicId() != null && !user.getImagePublicId().isEmpty()) {
             try {
                 cloudinaryService.delete(user.getImagePublicId());
@@ -128,6 +159,7 @@ public class UserService {
         userRepository.delete(user);
     }
 
+    @Transactional(readOnly = true)
     public UserDetailsWithPetsDTO getUserWithPets(Long userId) {
         UserModel user = userRepository.findById(userId)
                 .orElseThrow(() -> new NoSuchElementException("Utilizador não encontrado com o ID: " + userId));
@@ -170,6 +202,7 @@ public class UserService {
         passwordResetTokenRepository.delete(resetToken);
     }
 
+    @Transactional(readOnly = true)
     public List<UserResponseDTO> findUsersByRole(UserRole role) {
         return userRepository.findByRole(role).stream()
                 .map(userMapper::toDTO)

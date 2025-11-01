@@ -7,15 +7,12 @@ import org.springframework.stereotype.Repository;
 import sesi.petvita.serviceschedule.model.ServiceScheduleModel;
 
 import java.time.LocalDate;
+import java.time.LocalTime; // <-- IMPORTAR
 import java.util.List;
 
 @Repository
 public interface ServiceScheduleRepository extends JpaRepository<ServiceScheduleModel, Long> {
 
-    // --- CORREÇÃO PRINCIPAL AQUI ---
-    // Este método substitui o findByEmployeeId... anterior.
-    // Usamos JOIN FETCH para carregar todos os dados relacionados em uma única consulta,
-    // o que previne a LazyInitializationException e melhora a performance.
     @Query("SELECT s FROM ServiceScheduleModel s " +
             "JOIN FETCH s.pet " +
             "JOIN FETCH s.client " +
@@ -25,8 +22,20 @@ public interface ServiceScheduleRepository extends JpaRepository<ServiceSchedule
             "ORDER BY s.scheduleDate DESC, s.scheduleTime DESC")
     List<ServiceScheduleModel> findAllByEmployeeIdWithDetails(@Param("employeeId") Long employeeId);
 
-    // Métodos existentes para o dashboard
     long countByEmployeeIdAndScheduleDate(Long employeeId, LocalDate date);
+
     long countByEmployeeIdAndStatusAndScheduleDateBetween(Long employeeId, String status, LocalDate startDate, LocalDate endDate);
+
     List<ServiceScheduleModel> findByClientIdOrderByScheduleDateDesc(Long clientId);
+
+    // --- NOVO MÉTODO ADICIONADO AQUI ---
+    /**
+     * Busca os horários de início de serviços PENDENTES ou AGENDADOS
+     * para um funcionário específico em uma data específica.
+     */
+    @Query("SELECT s.scheduleTime FROM ServiceScheduleModel s " +
+            "WHERE s.employee.id = :employeeId " +
+            "AND s.scheduleDate = :date " +
+            "AND s.status IN ('AGENDADO', 'PENDENTE')")
+    List<LocalTime> findBookedTimesByEmployeeAndDate(@Param("employeeId") Long employeeId, @Param("date") LocalDate date);
 }

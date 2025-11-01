@@ -18,9 +18,14 @@ import sesi.petvita.serviceschedule.repository.ServiceScheduleRepository;
 import sesi.petvita.user.model.UserModel;
 import sesi.petvita.user.repository.UserRepository;
 import sesi.petvita.user.role.UserRole;
+import sesi.petvita.veterinary.model.WorkSchedule; // <-- IMPORT NECESSÁRIO
+import sesi.petvita.veterinary.repository.WorkScheduleRepository; // <-- IMPORT NECESSÁRIO
 
+import java.time.DayOfWeek; // <-- IMPORT NECESSÁRIO
 import java.time.LocalDate;
+import java.time.LocalTime; // <-- IMPORT NECESSÁRIO
 import java.time.temporal.TemporalAdjusters;
+import java.util.ArrayList; // <-- IMPORT NECESSÁRIO
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.stream.Collectors;
@@ -35,6 +40,7 @@ public class ServiceScheduleService {
     private final ClinicServiceRepository clinicServiceRepository;
     private final ServiceScheduleMapper mapper;
     private final NotificationService notificationService;
+    private final WorkScheduleRepository workScheduleRepository;
 
     @Transactional
     public ServiceScheduleResponseDTO create(ServiceScheduleRequestDTO dto, UserModel client) {
@@ -85,6 +91,37 @@ public class ServiceScheduleService {
         long servicesFinalizedThisMonth = scheduleRepository.countByEmployeeIdAndStatusAndScheduleDateBetween(employee.getId(), "FINALIZADO", startOfMonth, endOfMonth);
 
         return new EmployeeDashboardSummaryDTO(servicesToday, servicesFinalizedThisMonth);
+    }
+
+    @Transactional(readOnly = true)
+    public List<LocalTime> getAvailableSlotsForEmployee(Long employeeId, LocalDate date) {
+        // 1. Encontrar o horário de trabalho do funcionário
+        DayOfWeek dayOfWeek = date.getDayOfWeek();
+        WorkSchedule schedule = workScheduleRepository.findByProfessionalUserIdAndDayOfWeek(employeeId, dayOfWeek)
+                .orElse(null);
+
+        // 2. Verificar se ele trabalha neste dia
+        if (schedule == null || !schedule.isWorking() || schedule.getStartTime() == null || schedule.getEndTime() == null) {
+            return new ArrayList<>(); // Retorna lista vazia se não houver horário ou não trabalha
+        }
+
+        // 3. Gerar todos os horários possíveis (com intervalo de 45 min)
+        List<LocalTime> allPossibleSlots = new ArrayList<>();
+        LocalTime currentSlot = schedule.getStartTime();
+        long slotInterval = 45; // Intervalo de 45 minutos
+
+        while (currentSlot.isBefore(schedule.getEndTime())) {
+            allPossibleSlots.add(currentSlot);
+            currentSlot = currentSlot.plusMinutes(slotInterval);
+        }
+
+        // 4. Buscar horários já agendados
+        List<LocalTime> bookedSlots = scheduleRepository.findBookedTimesByEmployeeAndDate(employeeId, date);
+
+        // 5. Retornar apenas os horários livres
+        return allPossibleSlots.stream()
+                .filter(slot -> !bookedSlots.contains(slot))
+                .collect(Collectors.toList());
     }
 
     @Transactional

@@ -45,29 +45,34 @@ public class SecurityConfig {
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                        // Endpoints Públicos
+                        // 1. ENDPOINTS PÚBLICOS
                         .requestMatchers(
                                 "/auth/**",
                                 "/users/register",
-                                // --- CORREÇÃO APLICADA AQUI ---
-                                // Permite o cadastro de novos veterinários sem autenticação.
                                 "/veterinary",
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
                                 "/api/public/**"
                         ).permitAll()
                         .requestMatchers(HttpMethod.GET, "/veterinary/**").permitAll()
+
+                        // 2. ENDPOINTS DE ADMIN (Prioridade Alta)
+                        .requestMatchers("/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/api/schedules/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/reports/**").hasRole("ADMIN")
+
+                        // 3. ENDPOINTS DE FUNCIONÁRIO
+                        // --- CORREÇÃO APLICADA AQUI ---
+                        // Permite que qualquer usuário autenticado VEJA a lista de funcionários (necessário para agendamento)
                         .requestMatchers(HttpMethod.GET, "/api/employee/all").authenticated()
+                        // Protege todas as outras ações de /api/employee/ (como POST, PUT, DELETE)
+                        .requestMatchers("/api/employee/**").hasAnyRole("EMPLOYEE", "ADMIN")
+                        .requestMatchers("/api/schedules/employee/my-schedule").hasRole("EMPLOYEE")
+                        .requestMatchers(HttpMethod.GET, "/admin/consultations").hasAnyRole("ADMIN", "EMPLOYEE")
 
-                        // Endpoints Autenticados (Qualquer Role)
-                        .requestMatchers(
-                                "/users/me",
-                                "/upload/**",
-                                "/chat/**",
-                                "/notifications/**"
-                        ).authenticated()
-
-                        // Regras de AÇÃO para o VETERINÁRIO
+                        // 4. ENDPOINTS DE VETERINÁRIO
+                        .requestMatchers("/vet/**").hasRole("VETERINARY")
+                        .requestMatchers("/api/schedules/vet/my-schedule").hasRole("VETERINARY")
                         .requestMatchers(
                                 "/consultas/{id:[0-9]+}/accept",
                                 "/consultas/{id:[0-9]+}/reject",
@@ -75,33 +80,26 @@ public class SecurityConfig {
                         ).hasRole("VETERINARY")
                         .requestMatchers(HttpMethod.PUT, "/consultas/{id:[0-9]+}/report").hasRole("VETERINARY")
 
-                        // Regras de AÇÃO que ambos (USER e VETERINARY) podem fazer
-                        .requestMatchers(HttpMethod.POST, "/consultas/{id:[0-9]+}/cancel").hasAnyRole("USER", "VETERINARY")
-
-                        // Regras específicas de AÇÃO para o USUÁRIO
-                        .requestMatchers(HttpMethod.PUT, "/consultas/{id:[0-9]+}").hasRole("USER")
-
-                        // Regra de VISUALIZAÇÃO de detalhes
-                        .requestMatchers(HttpMethod.GET, "/consultas/{id:[0-9]+}").hasAnyRole("USER", "VETERINARY", "ADMIN", "EMPLOYEE")
-
-                        // Demais endpoints do Cliente (USER)
+                        // 5. ENDPOINTS DE CLIENTE (USER)
                         .requestMatchers("/pets/**", "/agendar-consulta", "/api/service-schedules/**").hasRole("USER")
                         .requestMatchers("/consultas/my-consultations").hasRole("USER")
                         .requestMatchers(HttpMethod.POST, "/consultas").hasRole("USER")
+                        .requestMatchers(HttpMethod.PUT, "/consultas/{id:[0-9]+}").hasRole("USER")
                         .requestMatchers(HttpMethod.POST, "/veterinary/{id:[0-9]+}/rate").hasRole("USER")
 
-                        // Endpoints do Veterinário (VETERINARY)
-                        .requestMatchers("/vet/**").hasRole("VETERINARY")
+                        // 6. ENDPOINTS COMPARTILHADOS
+                        .requestMatchers(HttpMethod.POST, "/consultas/{id:[0-9]+}/cancel").hasAnyRole("USER", "VETERINARY")
+                        .requestMatchers(HttpMethod.GET, "/consultas/{id:[0-9]+}").hasAnyRole("USER", "VETERINARY", "ADMIN", "EMPLOYEE")
 
-                        // Endpoints do Funcionário (EMPLOYEE)
-                        .requestMatchers("/api/employee/**").hasAnyRole("EMPLOYEE", "ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/admin/consultations").hasAnyRole("ADMIN", "EMPLOYEE")
+                        // 7. ENDPOINTS GERAIS AUTENTICADOS (Qualquer usuário logado)
+                        .requestMatchers(
+                                "/users/me",
+                                "/upload/**",
+                                "/chat/**",
+                                "/notifications/**"
+                        ).authenticated()
 
-                        // Endpoints do Administrador (ADMIN)
-                        .requestMatchers("/admin/**").hasRole("ADMIN")
-                        .requestMatchers("/reports/**").hasRole("ADMIN")
-
-                        // Qualquer outra requisição deve ser autenticada
+                        // 8. REGRA FINAL
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))

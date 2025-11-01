@@ -7,14 +7,34 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import sesi.petvita.user.model.UserModel;
 import sesi.petvita.user.repository.UserRepository;
 import sesi.petvita.user.role.UserRole;
-// As importações do VeterinaryRepository, VeterinaryModel e SpecialityEnum foram removidas.
+import sesi.petvita.veterinary.model.WorkSchedule; // <-- IMPORTAR
+import sesi.petvita.veterinary.repository.WorkScheduleRepository; // <-- IMPORTAR
+
+import java.time.DayOfWeek; // <-- IMPORTAR
+import java.time.LocalTime; // <-- IMPORTAR
 import java.util.Optional;
 
 @Configuration
 public class AdminInitializer {
 
+    // --- NOVO MÉTODO PRIVADO ---
+    // Método auxiliar para criar horários padrão
+    private void initializeWorkScheduleFor(UserModel userAccount, WorkScheduleRepository workScheduleRepository) {
+        System.out.println("Inicializando horários para: " + userAccount.getEmail());
+        for (DayOfWeek day : DayOfWeek.values()) {
+            WorkSchedule schedule = WorkSchedule.builder()
+                    .professionalUser(userAccount)
+                    .dayOfWeek(day)
+                    .startTime(LocalTime.of(9, 0))
+                    .endTime(LocalTime.of(18, 0))
+                    .isWorking(day != DayOfWeek.SATURDAY && day != DayOfWeek.SUNDAY)
+                    .build();
+            workScheduleRepository.save(schedule);
+        }
+    }
+
     @Bean
-    public CommandLineRunner initAdminUser(UserRepository userRepository, PasswordEncoder passwordEncoder) {
+    public CommandLineRunner initAdminUser(UserRepository userRepository, PasswordEncoder passwordEncoder, WorkScheduleRepository workScheduleRepository) { // <-- INJETAR REPOSITÓRIO
         return args -> {
             // Criação do usuário ADMIN
             final String adminEmail = "admin@petvita.com";
@@ -31,6 +51,7 @@ public class AdminInitializer {
                 newAdmin.setRole(UserRole.ADMIN);
                 userRepository.save(newAdmin);
                 System.out.println("Usuário 'admin@petvita.com' criado com sucesso!");
+                // (Admins não precisam de horário de trabalho)
             }
 
             // Criação do usuário EMPLOYEE para testes
@@ -46,8 +67,12 @@ public class AdminInitializer {
                 newEmployee.setRg("888888888");
                 newEmployee.setImageurl("https://i.imgur.com/2qgrCI2.png");
                 newEmployee.setRole(UserRole.EMPLOYEE);
-                userRepository.save(newEmployee);
+                UserModel savedEmployee = userRepository.save(newEmployee);
                 System.out.println("Usuário 'funcionario@petvita.com' criado com sucesso!");
+
+                // --- CORREÇÃO APLICADA AQUI ---
+                // Inicializa os horários para o funcionário de teste
+                initializeWorkScheduleFor(savedEmployee, workScheduleRepository);
             }
         };
     }

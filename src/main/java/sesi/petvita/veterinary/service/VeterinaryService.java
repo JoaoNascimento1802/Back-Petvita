@@ -87,15 +87,15 @@ public class VeterinaryService {
                 .build();
 
         VeterinaryModel savedVeterinary = veterinaryRepository.save(newVeterinary);
-        initializeWorkScheduleFor(savedVeterinary);
+        initializeWorkScheduleFor(userAccount); // Passa a conta de usuário
 
         return veterinaryMapper.toDTO(savedVeterinary);
     }
 
-    private void initializeWorkScheduleFor(VeterinaryModel vet) {
+    private void initializeWorkScheduleFor(UserModel userAccount) {
         for (DayOfWeek day : DayOfWeek.values()) {
             WorkSchedule schedule = WorkSchedule.builder()
-                    .veterinary(vet)
+                    .professionalUser(userAccount) // Associa ao UserModel
                     .dayOfWeek(day)
                     .startTime(LocalTime.of(9, 0))
                     .endTime(LocalTime.of(18, 0))
@@ -107,18 +107,26 @@ public class VeterinaryService {
 
     @Transactional(readOnly = true)
     public List<LocalTime> getAvailableSlots(Long vetId, LocalDate date) {
+        VeterinaryModel vet = veterinaryRepository.findById(vetId)
+                .orElseThrow(() -> new NoSuchElementException("Veterinário não encontrado: " + vetId));
+
         DayOfWeek dayOfWeek = date.getDayOfWeek();
-        WorkSchedule schedule = workScheduleRepository.findByVeterinaryIdAndDayOfWeek(vetId, dayOfWeek)
+
+        // Busca pelo ID do usuário associado ao veterinário
+        WorkSchedule schedule = workScheduleRepository.findByProfessionalUserIdAndDayOfWeek(vet.getUserAccount().getId(), dayOfWeek)
                 .orElse(null);
+
         if (schedule == null || !schedule.isWorking() || schedule.getStartTime() == null || schedule.getEndTime() == null) {
             return new ArrayList<>();
         }
 
         List<LocalTime> allPossibleSlots = new ArrayList<>();
         LocalTime currentSlot = schedule.getStartTime();
+
+        // Lógica com intervalo de 45 minutos
         while (currentSlot.isBefore(schedule.getEndTime())) {
             allPossibleSlots.add(currentSlot);
-            currentSlot = currentSlot.plusHours(1);
+            currentSlot = currentSlot.plusMinutes(45);
         }
 
         List<LocalTime> bookedSlots = consultationRepository.findBookedTimesByVeterinarianAndDate(vetId, date);
@@ -131,6 +139,7 @@ public class VeterinaryService {
     public VeterinaryResponseDTO updateVeterinary(Long id, VeterinaryRequestDTO dto) {
         VeterinaryModel vet = veterinaryRepository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("Veterinário não encontrado com o ID: " + id));
+
         UserModel userAccount = vet.getUserAccount();
         if (userAccount == null) {
             throw new IllegalStateException("Perfil de veterinário sem conta de usuário associada.");
@@ -141,6 +150,7 @@ public class VeterinaryService {
         userAccount.setPhone(dto.phone());
         userAccount.setImageurl(dto.imageurl());
         userAccount.setRg(dto.rg());
+
         if (dto.password() != null && !dto.password().isEmpty()) {
             userAccount.setPassword(passwordEncoder.encode(dto.password()));
         }
@@ -163,12 +173,13 @@ public class VeterinaryService {
         }
 
         List<ConsultationStatus> activeStatuses = List.of(ConsultationStatus.PENDENTE, ConsultationStatus.AGENDADA);
+
         if (consultationRepository.existsByVeterinarioIdAndStatusIn(id, activeStatuses)) {
             throw new IllegalStateException("Não é possível excluir este veterinário, pois ele possui consultas pendentes ou agendadas.");
         }
 
         VeterinaryModel vet = veterinaryRepository.findById(id).get();
-        veterinaryRepository.delete(vet);
+        veterinaryRepository.delete(vet); // Graças ao cascade, o UserModel associado também será removido
     }
 
     @Transactional
@@ -177,6 +188,7 @@ public class VeterinaryService {
                 .orElseThrow(() -> new NoSuchElementException("Veterinário não encontrado."));
         UserModel user = userRepository.findById(userId)
                 .orElseThrow(() -> new NoSuchElementException("Usuário não encontrado."));
+
         VeterinaryRating newRating = VeterinaryRating.builder()
                 .veterinary(vet)
                 .user(user)
@@ -194,24 +206,28 @@ public class VeterinaryService {
         veterinaryRepository.save(vet);
     }
 
+    @Transactional(readOnly = true)
     public List<VeterinaryResponseDTO> findAll() {
         return veterinaryRepository.findAll().stream()
                 .map(veterinaryMapper::toDTO)
                 .collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
     public VeterinaryResponseDTO findById(Long id) {
         return veterinaryRepository.findById(id)
                 .map(veterinaryMapper::toDTO)
                 .orElseThrow(() -> new NoSuchElementException("Veterinário não encontrado com o ID: " + id));
     }
 
+    @Transactional(readOnly = true)
     public VeterinaryResponseDTO findVeterinaryByUserAccount(UserModel user) {
         return veterinaryRepository.findByUserAccount(user)
                 .map(veterinaryMapper::toDTO)
                 .orElseThrow(() -> new NoSuchElementException("Perfil de veterinário não encontrado para este usuário."));
     }
 
+    @Transactional(readOnly = true)
     public List<VeterinaryResponseDTO> searchVeterinarians(String name, SpecialityEnum speciality) {
         List<VeterinaryModel> result;
         if (name != null && !name.isEmpty() && speciality != null) {
@@ -226,9 +242,11 @@ public class VeterinaryService {
         return result.stream().map(veterinaryMapper::toDTO).collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
     public VeterinarianMonthlyReportDTO getMonthlyReport(UserModel user) {
         VeterinaryModel vet = veterinaryRepository.findByUserAccount(user)
                 .orElseThrow(() -> new IllegalStateException("Perfil de veterinário não encontrado para este usuário."));
+
         LocalDate today = LocalDate.now();
         int year = today.getYear();
         int month = today.getMonthValue();
@@ -255,10 +273,8 @@ public class VeterinaryService {
         );
 
         long total = filteredConsultations.size();
-
         Map<String, Long> byStatus = filteredConsultations.stream()
                 .collect(Collectors.groupingBy(c -> c.getStatus().getDescricao(), Collectors.counting()));
-
         Map<String, Long> bySpeciality = filteredConsultations.stream()
                 .collect(Collectors.groupingBy(c -> c.getSpecialityEnum().getDescricao(), Collectors.counting()));
 
@@ -294,7 +310,6 @@ public class VeterinaryService {
                 .fileUrl(url)
                 .publicId(publicId)
                 .build();
-
         medicalAttachmentRepository.save(attachment);
 
         return url;
@@ -311,7 +326,6 @@ public class VeterinaryService {
                 .dosage(dto.dosage())
                 .instructions(dto.instructions())
                 .build();
-
         prescriptionRepository.save(prescription);
     }
 
@@ -330,6 +344,7 @@ public class VeterinaryService {
         return prescriptionTemplateMapper.toDTO(savedTemplate);
     }
 
+    @Transactional(readOnly = true)
     public byte[] generatePrescriptionPdf(Long prescriptionId) throws DocumentException, IOException {
         Prescription prescription = prescriptionRepository.findById(prescriptionId)
                 .orElseThrow(() -> new NoSuchElementException("Prescrição não encontrada com o ID: " + prescriptionId));
@@ -354,6 +369,7 @@ public class VeterinaryService {
         infoTable.setWidthPercentage(100);
         infoTable.setWidths(new float[]{1, 2});
         infoTable.setSpacingAfter(15);
+
         addCellToTable(infoTable, "Paciente:", headerFont, Element.ALIGN_LEFT);
         addCellToTable(infoTable, consultation.getPet().getName(), bodyFont, Element.ALIGN_LEFT);
         addCellToTable(infoTable, "Tutor:", headerFont, Element.ALIGN_LEFT);
@@ -376,6 +392,7 @@ public class VeterinaryService {
 
         document.add(Chunk.NEWLINE);
         document.add(Chunk.NEWLINE);
+
         Paragraph vetInfo = new Paragraph();
         vetInfo.setAlignment(Element.ALIGN_CENTER);
         vetInfo.add(new Chunk(consultation.getVeterinario().getName(), bodyFont));

@@ -78,8 +78,12 @@ public class ConsultationService {
         }
 
         DayOfWeek dayOfWeek = dto.consultationdate().getDayOfWeek();
-        WorkSchedule schedule = workScheduleRepository.findByVeterinaryIdAndDayOfWeek(vet.getId(), dayOfWeek)
+
+        // --- CORREÇÃO APLICADA AQUI ---
+        // A busca agora é feita pelo ID da conta de usuário (professional_user_id) do veterinário
+        WorkSchedule schedule = workScheduleRepository.findByProfessionalUserIdAndDayOfWeek(vet.getUserAccount().getId(), dayOfWeek)
                 .orElseThrow(() -> new IllegalStateException("Configuração de agenda não encontrada para este dia."));
+
         if (!schedule.isWorking() || dto.consultationtime().isBefore(schedule.getStartTime()) || dto.consultationtime().isAfter(schedule.getEndTime().minusMinutes(30))) {
             throw new IllegalStateException("O veterinário não atende no dia ou horário selecionado. Horário de atendimento: " + schedule.getStartTime() + " - " + schedule.getEndTime());
         }
@@ -214,7 +218,6 @@ public class ConsultationService {
 
     @Transactional(readOnly = true)
     public List<ConsultationResponseDTO> findForAuthenticatedUser(UserModel user) {
-        // CORREÇÃO: Utiliza o novo método com JOIN FETCH para evitar LazyInitializationException
         return consultationRepository.findByUsuarioIdWithDetails(user.getId())
                 .stream()
                 .map(consultationMapper::toDTO)
@@ -223,7 +226,6 @@ public class ConsultationService {
 
     @Transactional(readOnly = true)
     public ConsultationResponseDTO findById(Long id) {
-        // CORREÇÃO: Utiliza o novo método com JOIN FETCH para evitar LazyInitializationException
         return consultationRepository.findByIdWithDetails(id)
                 .map(consultationMapper::toDTO)
                 .orElseThrow(() -> new NoSuchElementException("Consulta não encontrada com o ID: " + id));
@@ -232,7 +234,6 @@ public class ConsultationService {
     @Transactional(readOnly = true)
     public List<ConsultationResponseDTO> findForAuthenticatedVeterinary(UserModel user) {
         VeterinaryModel vet = veterinaryRepository.findByUserAccount(user).orElseThrow(() -> new NoSuchElementException("Perfil de veterinário não encontrado."));
-        // NOTA: Para máxima performance, um método com JOIN FETCH seria ideal aqui também.
         return consultationRepository.findByVeterinarioId(vet.getId()).stream().map(consultationMapper::toDTO).collect(Collectors.toList());
     }
 
