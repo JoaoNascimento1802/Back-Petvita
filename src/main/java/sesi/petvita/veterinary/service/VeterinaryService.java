@@ -1,3 +1,4 @@
+// sesi/petvita/veterinary/service/VeterinaryService.java
 package sesi.petvita.veterinary.service;
 
 import com.itextpdf.text.*;
@@ -64,7 +65,9 @@ public class VeterinaryService {
             throw new IllegalStateException("Este e-mail já está em uso por outro usuário.");
         }
 
-        String imageUrl = (dto.imageurl() != null && !dto.imageurl().isBlank()) ? dto.imageurl() : DEFAULT_IMAGE_URL;
+        // --- CORREÇÃO DE FOTO DE PERFIL ---
+        // Força a URL padrão, ignorando a URL aleatória (pravatar) enviada pelo frontend.
+        String imageUrl = DEFAULT_IMAGE_URL;
 
         UserModel userAccount = UserModel.builder()
                 .username(dto.name())
@@ -74,7 +77,7 @@ public class VeterinaryService {
                 .role(UserRole.VETERINARY)
                 .address("Não informado")
                 .rg(dto.rg())
-                .imageurl(imageUrl)
+                .imageurl(imageUrl) // Usa a URL padrão
                 .build();
 
         VeterinaryModel newVeterinary = VeterinaryModel.builder()
@@ -82,7 +85,7 @@ public class VeterinaryService {
                 .crmv(dto.crmv())
                 .specialityenum(dto.specialityenum())
                 .phone(dto.phone())
-                .imageurl(imageUrl)
+                .imageurl(imageUrl) // Usa a URL padrão
                 .userAccount(userAccount)
                 .build();
 
@@ -130,6 +133,7 @@ public class VeterinaryService {
         }
 
         List<LocalTime> bookedSlots = consultationRepository.findBookedTimesByVeterinarianAndDate(vetId, date);
+
         return allPossibleSlots.stream()
                 .filter(slot -> !bookedSlots.contains(slot))
                 .collect(Collectors.toList());
@@ -173,19 +177,20 @@ public class VeterinaryService {
         }
 
         List<ConsultationStatus> activeStatuses = List.of(ConsultationStatus.PENDENTE, ConsultationStatus.AGENDADA);
-
         if (consultationRepository.existsByVeterinarioIdAndStatusIn(id, activeStatuses)) {
             throw new IllegalStateException("Não é possível excluir este veterinário, pois ele possui consultas pendentes ou agendadas.");
         }
 
         VeterinaryModel vet = veterinaryRepository.findById(id).get();
-        veterinaryRepository.delete(vet); // Graças ao cascade, o UserModel associado também será removido
+        veterinaryRepository.delete(vet);
+        // Graças ao cascade, o UserModel associado também será removido
     }
 
     @Transactional
     public void addRating(Long veterinaryId, Long userId, VeterinaryRatingRequestDTO dto) {
         VeterinaryModel vet = veterinaryRepository.findById(veterinaryId)
                 .orElseThrow(() -> new NoSuchElementException("Veterinário não encontrado."));
+
         UserModel user = userRepository.findById(userId)
                 .orElseThrow(() -> new NoSuchElementException("Usuário não encontrado."));
 
@@ -195,6 +200,7 @@ public class VeterinaryService {
                 .rating(dto.rating())
                 .comment(dto.comment())
                 .build();
+
         ratingRepository.save(newRating);
 
         List<VeterinaryRating> allRatings = vet.getRatings();
@@ -230,6 +236,7 @@ public class VeterinaryService {
     @Transactional(readOnly = true)
     public List<VeterinaryResponseDTO> searchVeterinarians(String name, SpecialityEnum speciality) {
         List<VeterinaryModel> result;
+
         if (name != null && !name.isEmpty() && speciality != null) {
             result = veterinaryRepository.findByNameContainingIgnoreCaseAndSpecialityenum(name, speciality);
         } else if (name != null && !name.isEmpty()) {
@@ -310,6 +317,7 @@ public class VeterinaryService {
                 .fileUrl(url)
                 .publicId(publicId)
                 .build();
+
         medicalAttachmentRepository.save(attachment);
 
         return url;
@@ -326,6 +334,7 @@ public class VeterinaryService {
                 .dosage(dto.dosage())
                 .instructions(dto.instructions())
                 .build();
+
         prescriptionRepository.save(prescription);
     }
 

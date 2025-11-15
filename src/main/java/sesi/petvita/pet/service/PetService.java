@@ -1,3 +1,4 @@
+// sesi/petvita/pet/service/PetService.java
 package sesi.petvita.pet.service;
 
 import lombok.RequiredArgsConstructor;
@@ -21,6 +22,9 @@ public class PetService {
     private final PetRepository petRepository;
     private final UserRepository userRepository;
     private final PetMapper petMapper;
+    // Define a URL padrão
+    private final String DEFAULT_PET_IMAGE_URL = "https://i.imgur.com/2qgrCI2.png";
+
 
     public List<PetResponseDTO> findAllPets() {
         return petRepository.findAll().stream()
@@ -41,7 +45,11 @@ public class PetService {
         PetModel pet = new PetModel();
         pet.setName(petDto.name());
         pet.setAge(petDto.age());
-        pet.setImageurl(petDto.imageurl());
+
+        // --- CORREÇÃO DE FOTO DE PERFIL ---
+        // Ignora a URL do DTO (que vinha com 'pravatar') e força a URL padrão.
+        pet.setImageurl(DEFAULT_PET_IMAGE_URL);
+
         pet.setPersonalizatedSpecies(petDto.personalizatedSpecies());
         pet.setPersonalizedBreed(petDto.personalizedBreed());
         pet.setSpeciespet(petDto.speciespet());
@@ -73,7 +81,14 @@ public class PetService {
 
         existingPet.setName(petDto.name());
         existingPet.setAge(petDto.age());
-        existingPet.setImageurl(petDto.imageurl());
+
+        // --- CORREÇÃO DE FOTO DE PERFIL (UPDATE) ---
+        // Só atualiza a URL se ela não for nula ou vazia.
+        // A lógica de upload de imagem é separada (ImageUploadService)
+        if (petDto.imageurl() != null && !petDto.imageurl().isBlank()) {
+            existingPet.setImageurl(petDto.imageurl());
+        }
+
         existingPet.setPersonalizatedSpecies(petDto.personalizatedSpecies());
         existingPet.setPersonalizedBreed(petDto.personalizedBreed());
         existingPet.setSpeciespet(petDto.speciespet());
