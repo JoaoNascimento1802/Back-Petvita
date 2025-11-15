@@ -1,3 +1,4 @@
+// sesi/petvita/user/service/UserService.java
 package sesi.petvita.user.service;
 
 import lombok.RequiredArgsConstructor;
@@ -10,14 +11,12 @@ import sesi.petvita.admin.dto.AdminUserCreateRequestDTO;
 import sesi.petvita.admin.dto.UserDetailsWithPetsDTO;
 import sesi.petvita.auth.PasswordResetToken;
 import sesi.petvita.auth.PasswordResetTokenRepository;
+import sesi.petvita.auth.TokenService; // Importado
 import sesi.petvita.config.CloudinaryService;
 import sesi.petvita.notification.service.EmailService;
 import sesi.petvita.pet.dto.PetResponseDTO;
 import sesi.petvita.pet.mapper.PetMapper;
-import sesi.petvita.user.dto.UserProfileUpdateDTO;
-import sesi.petvita.user.dto.UserRequestDTO;
-import sesi.petvita.user.dto.UserResponseDTO;
-import sesi.petvita.user.dto.UserUpdateRequestDTO;
+import sesi.petvita.user.dto.*; // Importado
 import sesi.petvita.user.mapper.UserMapper;
 import sesi.petvita.user.model.UserModel;
 import sesi.petvita.user.repository.UserRepository;
@@ -48,7 +47,7 @@ public class UserService {
     private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final EmailService emailService;
     private final WorkScheduleRepository workScheduleRepository;
-
+    private final TokenService tokenService; // Injetado
     private final String DEFAULT_IMAGE_URL = "https://i.imgur.com/2qgrCI2.png";
 
     // Método auxiliar para criar horários padrão
@@ -66,15 +65,37 @@ public class UserService {
     }
 
     @Transactional
-    public UserResponseDTO updateUserProfile(Long userId, UserProfileUpdateDTO dto) {
-        UserModel existingUser = userRepository.findById(userId)
-                .orElseThrow(() -> new NoSuchElementException("Utilizador não encontrado com o ID: " + userId));
-        if (dto.username() != null) existingUser.setUsername(dto.username());
-        if (dto.email() != null) existingUser.setEmail(dto.email());
-        if (dto.phone() != null) existingUser.setPhone(dto.phone());
-        if (dto.address() != null) existingUser.setAddress(dto.address());
-        UserModel savedUser = userRepository.save(existingUser);
-        return userMapper.toDTO(savedUser);
+    public UserAuthResponseDTO updateUserProfile(UserModel authenticatedUser, UserProfileUpdateDTO dto) {
+
+        String newEmail = dto.email();
+        String oldEmail = authenticatedUser.getEmail();
+        // Verifica se o email foi fornecido e é diferente do e-mail atual
+        boolean emailChanged = newEmail != null && !newEmail.isBlank() && !newEmail.equalsIgnoreCase(oldEmail);
+        String token = null; // Token será nulo por padrão
+
+        // Atualiza os campos
+        if (dto.username() != null && !dto.username().isBlank()) {
+            authenticatedUser.setUsername(dto.username());
+        }
+        if (emailChanged) {
+            authenticatedUser.setEmail(newEmail);
+        }
+        if (dto.phone() != null && !dto.phone().isBlank()) {
+            authenticatedUser.setPhone(dto.phone());
+        }
+        if (dto.address() != null && !dto.address().isBlank()) {
+            authenticatedUser.setAddress(dto.address());
+        }
+
+        UserModel savedUser = userRepository.save(authenticatedUser);
+
+        // Se o e-mail (que é o login) mudou, gera um novo token para o usuário
+        if (emailChanged) {
+            token = tokenService.generateToken(savedUser);
+        }
+
+        // Retorna o DTO de resposta que contém o usuário e o novo token (se houver)
+        return new UserAuthResponseDTO(userMapper.toDTO(savedUser), token);
     }
 
     public Page<UserResponseDTO> findAllUsers(Pageable pageable) {
@@ -92,14 +113,15 @@ public class UserService {
                 .orElseThrow(() -> new NoSuchElementException("Utilizador não encontrado com o ID: " + id));
     }
 
+    @Transactional
     public UserResponseDTO registerUser(UserRequestDTO requestDTO) {
         UserModel user = userMapper.toModel(requestDTO);
         user.setRole(UserRole.USER);
         user.setPassword(passwordEncoder.encode(requestDTO.password()));
 
-        if (user.getImageurl() == null || user.getImageurl().isBlank()) {
-            user.setImageurl(DEFAULT_IMAGE_URL);
-        }
+        // --- CORREÇÃO DE FOTO DE PERFIL ---
+        // Ignora a URL aleatória (pravatar) enviada pelo frontend e força a URL padrão.
+        user.setImageurl(DEFAULT_IMAGE_URL);
 
         UserModel savedUser = userRepository.save(user);
         return userMapper.toDTO(savedUser);
@@ -115,10 +137,12 @@ public class UserService {
         user.setAddress(dto.address());
         user.setRg(dto.rg());
         user.setRole(dto.role());
+
+        // --- CORREÇÃO DE FOTO DE PERFIL (ADMIN) ---
+        // Se o admin não enviar uma URL, usa a padrão (ignora pravatar enviado pelo front)
         user.setImageurl(dto.imageurl() != null && !dto.imageurl().isEmpty() ? dto.imageurl() : DEFAULT_IMAGE_URL);
 
         UserModel savedUser = userRepository.save(user);
-
         // Se o usuário criado for um profissional (Vet ou Funcionário), cria horários para ele.
         if (dto.role() == UserRole.EMPLOYEE || dto.role() == UserRole.VETERINARY) {
             initializeWorkScheduleFor(savedUser);
@@ -131,10 +155,12 @@ public class UserService {
     public UserResponseDTO updateUser(Long id, UserUpdateRequestDTO requestDTO) {
         UserModel existingUser = userRepository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("Utilizador não encontrado com o ID: " + id));
+
         if (requestDTO.username() != null) existingUser.setUsername(requestDTO.username());
         if (requestDTO.email() != null) existingUser.setEmail(requestDTO.email());
         if (requestDTO.phone() != null) existingUser.setPhone(requestDTO.phone());
         if (requestDTO.address() != null) existingUser.setAddress(requestDTO.address());
+
         if (requestDTO.password() != null && !requestDTO.password().isEmpty()) {
             existingUser.setPassword(passwordEncoder.encode(requestDTO.password()));
         }
@@ -146,7 +172,6 @@ public class UserService {
     @Transactional
     public void deleteUser(Long id) {
         UserModel user = userRepository.findById(id)
-                // --- ERRO DE DIGITAÇÃO CORRIGIDO AQUI ---
                 .orElseThrow(() -> new NoSuchElementException("Utilizador não encontrado com o ID: " + id));
 
         if (user.getImagePublicId() != null && !user.getImagePublicId().isEmpty()) {
@@ -173,6 +198,7 @@ public class UserService {
     public void requestPasswordReset(String userEmail) {
         UserModel user = userRepository.findByEmail(userEmail)
                 .orElseThrow(() -> new NoSuchElementException("Utilizador não encontrado com o e-mail: " + userEmail));
+
         String token = UUID.randomUUID().toString();
         PasswordResetToken resetToken = new PasswordResetToken(token, user);
         passwordResetTokenRepository.save(resetToken);
@@ -191,6 +217,7 @@ public class UserService {
     public void resetPassword(String token, String newPassword) {
         PasswordResetToken resetToken = passwordResetTokenRepository.findByToken(token)
                 .orElseThrow(() -> new IllegalStateException("Token de redefinição inválido ou expirado."));
+
         if (resetToken.getExpiryDate().isBefore(LocalDateTime.now())) {
             passwordResetTokenRepository.delete(resetToken);
             throw new IllegalStateException("Token de redefinição expirado.");

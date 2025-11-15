@@ -1,3 +1,4 @@
+// sesi/petvita/user/controller/UserController.java
 package sesi.petvita.user.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -7,9 +8,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import sesi.petvita.user.dto.UserAuthResponseDTO; // Importar novo DTO
 import sesi.petvita.user.dto.UserRequestDTO;
 import sesi.petvita.user.dto.UserResponseDTO;
-import sesi.petvita.user.dto.UserProfileUpdateDTO; // Assegure-se de que este é o import correto
+import sesi.petvita.user.dto.UserProfileUpdateDTO;
 import sesi.petvita.user.mapper.UserMapper;
 import sesi.petvita.user.model.UserModel;
 import sesi.petvita.user.service.UserService;
@@ -37,13 +39,17 @@ public class UserController {
         return ResponseEntity.ok(userResponse);
     }
 
-    // CORREÇÃO: Garante que existe apenas UM método para PUT /users/me
+    /**
+     * Atualiza o perfil do usuário logado.
+     * Se o e-mail (que é usado para login) for alterado, um novo token JWT é retornado
+     * para que o frontend possa atualizar o armazenamento local e manter o usuário logado.
+     */
     @PutMapping("/me")
     @Operation(summary = "Atualizar dados do próprio perfil")
-    public ResponseEntity<UserResponseDTO> updateMyProfile(
+    public ResponseEntity<UserAuthResponseDTO> updateMyProfile(
             @AuthenticationPrincipal UserModel authenticatedUser,
-            @RequestBody @Valid UserProfileUpdateDTO dto) { // Usa o DTO específico de perfil
+            @RequestBody @Valid UserProfileUpdateDTO dto) {
 
-        return ResponseEntity.ok(userService.updateUserProfile(authenticatedUser.getId(), dto));
+        return ResponseEntity.ok(userService.updateUserProfile(authenticatedUser, dto));
     }
 }
