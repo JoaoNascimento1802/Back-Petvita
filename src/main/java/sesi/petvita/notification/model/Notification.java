@@ -1,11 +1,10 @@
+// sesi/petvita/notification/model/Notification.java
 package sesi.petvita.notification.model;
-
 import jakarta.persistence.*;
 import lombok.*;
 import sesi.petvita.user.model.UserModel;
 import java.time.LocalDateTime;
 
-// NOVO ARQUIVO
 @Entity
 @Getter
 @Setter
@@ -17,7 +16,10 @@ public class Notification {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    // --- CORREÇÃO AQUI ---
+    // Alterado de FetchType.LAZY para FetchType.EAGER
+    // Isso resolve o "Could not initialize proxy [sesi.petvita.user.model.UserModel#7] - no session"
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "user_id", nullable = false)
     private UserModel user;
 
