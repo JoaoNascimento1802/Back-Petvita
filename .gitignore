@@ -1,22 +1,13 @@
-# Arquivos compilados do Java
-*.class
+# Arquivos de configuração local
+/src/main/resources/application.properties
+/src/main/resources/firebase-service-account.json
+
+# Arquivos compilados (Java)
+/target/
 *.jar
 *.war
-/target/
 
 # Arquivos de IDE
 .idea/
-*.iml
 .vscode/
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-
-# Logs
-*.log
-
-# Arquivos do sistema operacional
-.DS_Store
-Thumbs.db
-
+*.iml

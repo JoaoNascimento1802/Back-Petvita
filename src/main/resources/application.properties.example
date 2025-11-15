@@ -1,0 +1,23 @@
+spring.application.name=PetVita
+server.port=8080
+
+spring.datasource.url=jdbc:mysql://localhost:3306/petvita?createDatabaseIfNotExist=true&serverTimezone=UTC
+spring.datasource.username=root
+spring.datasource.password= # <-- DEIXE EM BRANCO
+
+spring.jpa.hibernate.ddl-auto=update
+# ... (outras propriedades) ...
+
+application.security.jwt.secret-key= # <-- DEIXE EM BRANCO
+application.security.jwt.expiration=86400000
+
+spring.mail.host=smtp.gmail.com
+spring.mail.port=587
+spring.mail.username=seu-email@gmail.com
+spring.mail.password= # <-- DEIXE EM BRANCO
+
+cloudinary.cloud-name= # <-- DEIXE EM BRANCO
+cloudinary.api-key= # <-- DEIXE EM BRANCO
+cloudinary.api-secret= # <-- DEIXE EM BRANCO
+
+# NÃO COLOQUE A CHAVE DO FIREBASE AQUI
