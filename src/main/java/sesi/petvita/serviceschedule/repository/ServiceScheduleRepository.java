@@ -1,5 +1,5 @@
+// sesi/petvita/serviceschedule/repository/ServiceScheduleRepository.java
 package sesi.petvita.serviceschedule.repository;
-
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -7,11 +7,30 @@ import org.springframework.stereotype.Repository;
 import sesi.petvita.serviceschedule.model.ServiceScheduleModel;
 
 import java.time.LocalDate;
-import java.time.LocalTime; // <-- IMPORTAR
+import java.time.LocalTime;
 import java.util.List;
+import java.util.Optional; // --- ADICIONADO ---
 
 @Repository
 public interface ServiceScheduleRepository extends JpaRepository<ServiceScheduleModel, Long> {
+
+    // --- NOVO MÉTODO ADICIONADO AQUI ---
+    @Query("SELECT s FROM ServiceScheduleModel s " +
+            "JOIN FETCH s.pet " +
+            "JOIN FETCH s.client " +
+            "JOIN FETCH s.employee " +
+            "JOIN FETCH s.clinicService " +
+            "WHERE s.id = :id")
+    Optional<ServiceScheduleModel> findByIdWithDetails(@Param("id") Long id);
+    // --- FIM DO NOVO MÉTODO ---
+
+    @Query("SELECT s FROM ServiceScheduleModel s " +
+            "JOIN FETCH s.pet " +
+            "JOIN FETCH s.client " +
+            "JOIN FETCH s.employee " +
+            "JOIN FETCH s.clinicService " +
+            "ORDER BY s.scheduleDate DESC, s.scheduleTime DESC")
+    List<ServiceScheduleModel> findAllWithDetails();
 
     @Query("SELECT s FROM ServiceScheduleModel s " +
             "JOIN FETCH s.pet " +
@@ -28,14 +47,13 @@ public interface ServiceScheduleRepository extends JpaRepository<ServiceSchedule
 
     List<ServiceScheduleModel> findByClientIdOrderByScheduleDateDesc(Long clientId);
 
-    // --- NOVO MÉTODO ADICIONADO AQUI ---
-    /**
-     * Busca os horários de início de serviços PENDENTES ou AGENDADOS
-     * para um funcionário específico em uma data específica.
-     */
     @Query("SELECT s.scheduleTime FROM ServiceScheduleModel s " +
             "WHERE s.employee.id = :employeeId " +
             "AND s.scheduleDate = :date " +
-            "AND s.status IN ('AGENDADO', 'PENDENTE')")
-    List<LocalTime> findBookedTimesByEmployeeAndDate(@Param("employeeId") Long employeeId, @Param("date") LocalDate date);
+            "AND s.status IN :statuses")
+    List<LocalTime> findBookedTimesByEmployeeAndDate(
+            @Param("employeeId") Long employeeId,
+            @Param("date") LocalDate date,
+            @Param("statuses") List<String> statuses
+    );
 }
