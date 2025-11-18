@@ -11,23 +11,26 @@ import sesi.petvita.admin.dto.AdminUserCreateRequestDTO;
 import sesi.petvita.admin.dto.UserDetailsWithPetsDTO;
 import sesi.petvita.auth.PasswordResetToken;
 import sesi.petvita.auth.PasswordResetTokenRepository;
-import sesi.petvita.auth.TokenService; // Importado
+import sesi.petvita.auth.TokenService;
 import sesi.petvita.config.CloudinaryService;
 import sesi.petvita.notification.service.EmailService;
 import sesi.petvita.pet.dto.PetResponseDTO;
 import sesi.petvita.pet.mapper.PetMapper;
-import sesi.petvita.user.dto.*; // Importado
+import sesi.petvita.user.dto.*;
 import sesi.petvita.user.mapper.UserMapper;
 import sesi.petvita.user.model.UserModel;
 import sesi.petvita.user.repository.UserRepository;
 import sesi.petvita.user.role.UserRole;
+import sesi.petvita.veterinary.model.VeterinaryModel;
 import sesi.petvita.veterinary.model.WorkSchedule;
+import sesi.petvita.veterinary.repository.VeterinaryRepository;
 import sesi.petvita.veterinary.repository.WorkScheduleRepository;
+import sesi.petvita.veterinary.speciality.SpecialityEnum;
 
 import java.io.IOException;
 import java.time.DayOfWeek;
-import java.time.LocalTime;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -47,14 +50,15 @@ public class UserService {
     private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final EmailService emailService;
     private final WorkScheduleRepository workScheduleRepository;
-    private final TokenService tokenService; // Injetado
+    private final TokenService tokenService;
+    private final VeterinaryRepository veterinaryRepository;
+
     private final String DEFAULT_IMAGE_URL = "https://i.imgur.com/2qgrCI2.png";
 
-    // Método auxiliar para criar horários padrão
     private void initializeWorkScheduleFor(UserModel userAccount) {
         for (DayOfWeek day : DayOfWeek.values()) {
             WorkSchedule schedule = WorkSchedule.builder()
-                    .professionalUser(userAccount) // Associa ao UserModel
+                    .professionalUser(userAccount)
                     .dayOfWeek(day)
                     .startTime(LocalTime.of(9, 0))
                     .endTime(LocalTime.of(18, 0))
@@ -66,35 +70,32 @@ public class UserService {
 
     @Transactional
     public UserAuthResponseDTO updateUserProfile(UserModel authenticatedUser, UserProfileUpdateDTO dto) {
-
         String newEmail = dto.email();
         String oldEmail = authenticatedUser.getEmail();
-        // Verifica se o email foi fornecido e é diferente do e-mail atual
         boolean emailChanged = newEmail != null && !newEmail.isBlank() && !newEmail.equalsIgnoreCase(oldEmail);
-        String token = null; // Token será nulo por padrão
+        String token = null;
 
-        // Atualiza os campos
         if (dto.username() != null && !dto.username().isBlank()) {
             authenticatedUser.setUsername(dto.username());
+
+            if (authenticatedUser.getRole() == UserRole.VETERINARY) {
+                veterinaryRepository.findByUserAccount(authenticatedUser)
+                        .ifPresent(vet -> {
+                            vet.setName(dto.username());
+                            veterinaryRepository.save(vet);
+                        });
+            }
         }
-        if (emailChanged) {
-            authenticatedUser.setEmail(newEmail);
-        }
-        if (dto.phone() != null && !dto.phone().isBlank()) {
-            authenticatedUser.setPhone(dto.phone());
-        }
-        if (dto.address() != null && !dto.address().isBlank()) {
-            authenticatedUser.setAddress(dto.address());
-        }
+        if (emailChanged) authenticatedUser.setEmail(newEmail);
+        if (dto.phone() != null && !dto.phone().isBlank()) authenticatedUser.setPhone(dto.phone());
+        if (dto.address() != null && !dto.address().isBlank()) authenticatedUser.setAddress(dto.address());
 
         UserModel savedUser = userRepository.save(authenticatedUser);
 
-        // Se o e-mail (que é o login) mudou, gera um novo token para o usuário
         if (emailChanged) {
             token = tokenService.generateToken(savedUser);
         }
 
-        // Retorna o DTO de resposta que contém o usuário e o novo token (se houver)
         return new UserAuthResponseDTO(userMapper.toDTO(savedUser), token);
     }
 
@@ -115,19 +116,31 @@ public class UserService {
 
     @Transactional
     public UserResponseDTO registerUser(UserRequestDTO requestDTO) {
+        // Agora o mapper vai trazer a ROLE corretamente
         UserModel user = userMapper.toModel(requestDTO);
-        user.setRole(UserRole.USER);
-        user.setPassword(passwordEncoder.encode(requestDTO.password()));
 
-        // --- CORREÇÃO DE FOTO DE PERFIL ---
-        // Ignora a URL aleatória (pravatar) enviada pelo frontend e força a URL padrão.
+        // Validação de segurança extra
+        if (user.getRole() == null) {
+            user.setRole(UserRole.USER);
+        } else if (user.getRole() == UserRole.ADMIN || user.getRole() == UserRole.EMPLOYEE) {
+            // Impede criação de Admin/Employee por rota pública
+            user.setRole(UserRole.USER);
+        }
+
+        user.setPassword(passwordEncoder.encode(requestDTO.password()));
         user.setImageurl(DEFAULT_IMAGE_URL);
 
         UserModel savedUser = userRepository.save(user);
+
+        // Se a role veio como VETERINARY, cria o perfil
+        if (savedUser.getRole() == UserRole.VETERINARY) {
+            createVeterinaryProfile(savedUser, requestDTO.crmv());
+        }
+
         return userMapper.toDTO(savedUser);
     }
 
-    @Transactional // Garante que a criação do usuário e dos horários ocorra na mesma transação
+    @Transactional
     public UserResponseDTO createUserByAdmin(AdminUserCreateRequestDTO dto) {
         UserModel user = new UserModel();
         user.setUsername(dto.username());
@@ -137,18 +150,33 @@ public class UserService {
         user.setAddress(dto.address());
         user.setRg(dto.rg());
         user.setRole(dto.role());
-
-        // --- CORREÇÃO DE FOTO DE PERFIL (ADMIN) ---
-        // Se o admin não enviar uma URL, usa a padrão (ignora pravatar enviado pelo front)
         user.setImageurl(dto.imageurl() != null && !dto.imageurl().isEmpty() ? dto.imageurl() : DEFAULT_IMAGE_URL);
 
         UserModel savedUser = userRepository.save(user);
-        // Se o usuário criado for um profissional (Vet ou Funcionário), cria horários para ele.
-        if (dto.role() == UserRole.EMPLOYEE || dto.role() == UserRole.VETERINARY) {
+
+        if (dto.role() == UserRole.VETERINARY) {
+            createVeterinaryProfile(savedUser, dto.crmv());
+        } else if (dto.role() == UserRole.EMPLOYEE) {
             initializeWorkScheduleFor(savedUser);
         }
 
         return userMapper.toDTO(savedUser);
+    }
+
+    private void createVeterinaryProfile(UserModel savedUser, String crmv) {
+        String finalCrmv = (crmv != null && !crmv.trim().isEmpty()) ? crmv : "PENDENTE";
+
+        VeterinaryModel vetProfile = VeterinaryModel.builder()
+                .userAccount(savedUser)
+                .name(savedUser.getActualUsername())
+                .phone(savedUser.getPhone())
+                .imageurl(savedUser.getImageurl())
+                .specialityenum(SpecialityEnum.CLINICO_GERAL)
+                .crmv(finalCrmv)
+                .build();
+
+        veterinaryRepository.save(vetProfile);
+        initializeWorkScheduleFor(savedUser);
     }
 
     @Transactional
@@ -203,11 +231,11 @@ public class UserService {
         PasswordResetToken resetToken = new PasswordResetToken(token, user);
         passwordResetTokenRepository.save(resetToken);
 
-        String resetUrl = "https://vet-clinic-api-front.vercel.app/reset-password?token=" + token;
+        String resetUrl = "https://frontvita.vercel.app/reset-password?token=" + token;
         Map<String, Object> emailModel = new HashMap<>();
         emailModel.put("titulo", "Redefinição de Senha");
         emailModel.put("nomeUsuario", user.getActualUsername());
-        emailModel.put("corpoMensagem", "Você solicitou a redefinição da sua senha. Clique no link a seguir para criar uma nova senha. O link é válido por 1 hora. Se você não solicitou isso, por favor ignore este e-mail.\n\nLink: " + resetUrl);
+        emailModel.put("corpoMensagem", "Você solicitou a redefinição da sua senha. Clique no link a seguir para criar uma nova senha. O link é válido por 1 hora.\n\nLink: " + resetUrl);
         emailModel.put("mostrarDetalhesConsulta", false);
 
         emailService.sendHtmlEmailFromTemplate(user.getEmail(), "Redefinição de Senha - Pet Vita", emailModel);

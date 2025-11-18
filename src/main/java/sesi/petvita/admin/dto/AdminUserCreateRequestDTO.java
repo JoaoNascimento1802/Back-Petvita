@@ -1,3 +1,4 @@
+// sesi/petvita/admin/dto/AdminUserCreateRequestDTO.java
 package sesi.petvita.admin.dto;
 
 import jakarta.validation.constraints.Email;
@@ -28,5 +29,8 @@ public record AdminUserCreateRequestDTO(
         String imageurl,
 
         @NotNull
-        UserRole role // Permite que o admin defina a role (USER, EMPLOYEE, etc.)
+        UserRole role,
+
+        // --- CAMPO ADICIONADO ---
+        String crmv // Agora o Admin pode enviar o CRMV na criação
 ) {}

@@ -17,6 +17,7 @@ public class UserMapper {
                 .address(dto.address())
                 .rg(dto.rg())
                 .imageurl(dto.imageurl())
+                .role(dto.role())
                 .build();
     }
 

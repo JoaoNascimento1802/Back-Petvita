@@ -1,4 +1,3 @@
-// sesi/petvita/veterinary/service/VeterinaryService.java
 package sesi.petvita.veterinary.service;
 
 import com.itextpdf.text.*;
@@ -65,10 +64,9 @@ public class VeterinaryService {
             throw new IllegalStateException("Este e-mail já está em uso por outro usuário.");
         }
 
-        // --- CORREÇÃO DE FOTO DE PERFIL ---
-        // Força a URL padrão, ignorando a URL aleatória (pravatar) enviada pelo frontend.
         String imageUrl = DEFAULT_IMAGE_URL;
 
+        // Cria a conta de usuário vinculada
         UserModel userAccount = UserModel.builder()
                 .username(dto.name())
                 .email(dto.email())
@@ -77,20 +75,21 @@ public class VeterinaryService {
                 .role(UserRole.VETERINARY)
                 .address("Não informado")
                 .rg(dto.rg())
-                .imageurl(imageUrl) // Usa a URL padrão
+                .imageurl(imageUrl)
                 .build();
 
+        // Cria o perfil veterinário
         VeterinaryModel newVeterinary = VeterinaryModel.builder()
                 .name(dto.name())
                 .crmv(dto.crmv())
                 .specialityenum(dto.specialityenum())
                 .phone(dto.phone())
-                .imageurl(imageUrl) // Usa a URL padrão
-                .userAccount(userAccount)
+                .imageurl(imageUrl)
+                .userAccount(userAccount) // Vincula corretamente
                 .build();
 
         VeterinaryModel savedVeterinary = veterinaryRepository.save(newVeterinary);
-        initializeWorkScheduleFor(userAccount); // Passa a conta de usuário
+        initializeWorkScheduleFor(userAccount);
 
         return veterinaryMapper.toDTO(savedVeterinary);
     }
@@ -98,7 +97,7 @@ public class VeterinaryService {
     private void initializeWorkScheduleFor(UserModel userAccount) {
         for (DayOfWeek day : DayOfWeek.values()) {
             WorkSchedule schedule = WorkSchedule.builder()
-                    .professionalUser(userAccount) // Associa ao UserModel
+                    .professionalUser(userAccount)
                     .dayOfWeek(day)
                     .startTime(LocalTime.of(9, 0))
                     .endTime(LocalTime.of(18, 0))
@@ -114,8 +113,6 @@ public class VeterinaryService {
                 .orElseThrow(() -> new NoSuchElementException("Veterinário não encontrado: " + vetId));
 
         DayOfWeek dayOfWeek = date.getDayOfWeek();
-
-        // Busca pelo ID do usuário associado ao veterinário
         WorkSchedule schedule = workScheduleRepository.findByProfessionalUserIdAndDayOfWeek(vet.getUserAccount().getId(), dayOfWeek)
                 .orElse(null);
 
@@ -126,7 +123,6 @@ public class VeterinaryService {
         List<LocalTime> allPossibleSlots = new ArrayList<>();
         LocalTime currentSlot = schedule.getStartTime();
 
-        // Lógica com intervalo de 45 minutos
         while (currentSlot.isBefore(schedule.getEndTime())) {
             allPossibleSlots.add(currentSlot);
             currentSlot = currentSlot.plusMinutes(45);
@@ -149,24 +145,25 @@ public class VeterinaryService {
             throw new IllegalStateException("Perfil de veterinário sem conta de usuário associada.");
         }
 
-        userAccount.setUsername(dto.name());
-        userAccount.setEmail(dto.email());
-        userAccount.setPhone(dto.phone());
-        userAccount.setImageurl(dto.imageurl());
-        userAccount.setRg(dto.rg());
+        // Atualiza dados do usuário (login/base)
+        if(dto.name() != null) userAccount.setUsername(dto.name());
+        if(dto.email() != null) userAccount.setEmail(dto.email());
+        if(dto.phone() != null) userAccount.setPhone(dto.phone());
+        if(dto.imageurl() != null) userAccount.setImageurl(dto.imageurl());
+        if(dto.rg() != null) userAccount.setRg(dto.rg());
 
         if (dto.password() != null && !dto.password().isEmpty()) {
             userAccount.setPassword(passwordEncoder.encode(dto.password()));
         }
 
-        vet.setName(dto.name());
-        vet.setCrmv(dto.crmv());
-        vet.setSpecialityenum(dto.specialityenum());
-        vet.setPhone(dto.phone());
-        vet.setImageurl(dto.imageurl());
+        // Atualiza dados do veterinário (perfil específico)
+        if(dto.name() != null) vet.setName(dto.name());
+        if(dto.crmv() != null) vet.setCrmv(dto.crmv());
+        if(dto.specialityenum() != null) vet.setSpecialityenum(dto.specialityenum());
+        if(dto.phone() != null) vet.setPhone(dto.phone());
+        if(dto.imageurl() != null) vet.setImageurl(dto.imageurl());
 
         VeterinaryModel updatedVet = veterinaryRepository.save(vet);
-
         return veterinaryMapper.toDTO(updatedVet);
     }
 
@@ -175,32 +172,36 @@ public class VeterinaryService {
         if (!veterinaryRepository.existsById(id)) {
             throw new NoSuchElementException("Veterinário não encontrado com o ID: " + id);
         }
-
         List<ConsultationStatus> activeStatuses = List.of(ConsultationStatus.PENDENTE, ConsultationStatus.AGENDADA);
         if (consultationRepository.existsByVeterinarioIdAndStatusIn(id, activeStatuses)) {
             throw new IllegalStateException("Não é possível excluir este veterinário, pois ele possui consultas pendentes ou agendadas.");
         }
-
         VeterinaryModel vet = veterinaryRepository.findById(id).get();
+
+        // Se houver imagem no Cloudinary, deleta
+        if (vet.getImagePublicId() != null) {
+            try {
+                cloudinaryService.delete(vet.getImagePublicId());
+            } catch (IOException e) {
+                System.err.println("Erro ao deletar imagem do veterinário: " + e.getMessage());
+            }
+        }
+
         veterinaryRepository.delete(vet);
-        // Graças ao cascade, o UserModel associado também será removido
     }
 
     @Transactional
     public void addRating(Long veterinaryId, Long userId, VeterinaryRatingRequestDTO dto) {
         VeterinaryModel vet = veterinaryRepository.findById(veterinaryId)
                 .orElseThrow(() -> new NoSuchElementException("Veterinário não encontrado."));
-
         UserModel user = userRepository.findById(userId)
                 .orElseThrow(() -> new NoSuchElementException("Usuário não encontrado."));
-
         VeterinaryRating newRating = VeterinaryRating.builder()
                 .veterinary(vet)
                 .user(user)
                 .rating(dto.rating())
                 .comment(dto.comment())
                 .build();
-
         ratingRepository.save(newRating);
 
         List<VeterinaryRating> allRatings = vet.getRatings();
@@ -214,7 +215,8 @@ public class VeterinaryService {
 
     @Transactional(readOnly = true)
     public List<VeterinaryResponseDTO> findAll() {
-        return veterinaryRepository.findAll().stream()
+        // CORREÇÃO: Usa o método otimizado que carrega os usuários
+        return veterinaryRepository.findAllWithUser().stream()
                 .map(veterinaryMapper::toDTO)
                 .collect(Collectors.toList());
     }
@@ -233,18 +235,21 @@ public class VeterinaryService {
                 .orElseThrow(() -> new NoSuchElementException("Perfil de veterinário não encontrado para este usuário."));
     }
 
+    // --- LÓGICA DE BUSCA ATUALIZADA ---
     @Transactional(readOnly = true)
     public List<VeterinaryResponseDTO> searchVeterinarians(String name, SpecialityEnum speciality) {
         List<VeterinaryModel> result;
 
         if (name != null && !name.isEmpty() && speciality != null) {
-            result = veterinaryRepository.findByNameContainingIgnoreCaseAndSpecialityenum(name, speciality);
+            // Busca no nome do Vet OU do User
+            result = veterinaryRepository.findByNameAndSpeciality(name, speciality);
         } else if (name != null && !name.isEmpty()) {
-            result = veterinaryRepository.findByNameContainingIgnoreCase(name);
+            // Busca no nome do Vet OU do User
+            result = veterinaryRepository.findByName(name);
         } else if (speciality != null) {
             result = veterinaryRepository.findBySpecialityenum(speciality);
         } else {
-            result = veterinaryRepository.findAll();
+            result = veterinaryRepository.findAllWithUser();
         }
         return result.stream().map(veterinaryMapper::toDTO).collect(Collectors.toList());
     }
@@ -252,105 +257,62 @@ public class VeterinaryService {
     @Transactional(readOnly = true)
     public VeterinarianMonthlyReportDTO getMonthlyReport(UserModel user) {
         VeterinaryModel vet = veterinaryRepository.findByUserAccount(user)
-                .orElseThrow(() -> new IllegalStateException("Perfil de veterinário não encontrado para este usuário."));
-
+                .orElseThrow(() -> new IllegalStateException("Perfil de veterinário não encontrado."));
         LocalDate today = LocalDate.now();
         int year = today.getYear();
         int month = today.getMonthValue();
         LocalDate startDate = LocalDate.of(year, month, 1);
         LocalDate endDate = startDate.withDayOfMonth(startDate.lengthOfMonth());
-
         List<ConsultationModel> monthlyConsultations = consultationRepository.findByVeterinarioAndConsultationdateBetween(vet, startDate, endDate);
-
         long total = monthlyConsultations.size();
         long finalized = monthlyConsultations.stream().filter(c -> c.getStatus() == ConsultationStatus.FINALIZADA).count();
         long pending = monthlyConsultations.stream().filter(c -> c.getStatus() == ConsultationStatus.PENDENTE).count();
         Set<String> patients = monthlyConsultations.stream().map(c -> c.getPet().getName()).collect(Collectors.toSet());
-
         return new VeterinarianMonthlyReportDTO(year, month, total, finalized, pending, patients);
     }
 
     @Transactional(readOnly = true)
     public ReportSummaryDTO getCustomReportForVet(UserModel user, LocalDate startDate, LocalDate endDate) {
-        VeterinaryModel vet = veterinaryRepository.findByUserAccount(user)
-                .orElseThrow(() -> new IllegalStateException("Perfil de veterinário não encontrado para este usuário."));
-
-        List<ConsultationModel> filteredConsultations = consultationRepository.findWithFilters(
-                startDate, endDate, vet.getId(), null
-        );
-
+        VeterinaryModel vet = veterinaryRepository.findByUserAccount(user).orElseThrow();
+        List<ConsultationModel> filteredConsultations = consultationRepository.findWithFilters(startDate, endDate, vet.getId(), null);
         long total = filteredConsultations.size();
-        Map<String, Long> byStatus = filteredConsultations.stream()
-                .collect(Collectors.groupingBy(c -> c.getStatus().getDescricao(), Collectors.counting()));
-        Map<String, Long> bySpeciality = filteredConsultations.stream()
-                .collect(Collectors.groupingBy(c -> c.getSpecialityEnum().getDescricao(), Collectors.counting()));
-
-        List<ConsultationModel> finalizedConsultations = filteredConsultations.stream()
-                .filter(c -> c.getStatus() == ConsultationStatus.FINALIZADA && c.getClinicService() != null)
-                .collect(Collectors.toList());
-
-        BigDecimal totalRevenue = finalizedConsultations.stream()
-                .map(c -> c.getClinicService().getPrice())
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        Map<String, BigDecimal> revenueByService = finalizedConsultations.stream()
-                .collect(Collectors.groupingBy(
-                        c -> c.getClinicService().getName(),
-                        Collectors.reducing(BigDecimal.ZERO, c -> c.getClinicService().getPrice(), BigDecimal::add)
-                ));
-
-        return new ReportSummaryDTO(total, byStatus, bySpeciality, totalRevenue, revenueByService);
+        Map<String, Long> byStatus = filteredConsultations.stream().collect(Collectors.groupingBy(c -> c.getStatus().getDescricao(), Collectors.counting()));
+        Map<String, Long> bySpeciality = filteredConsultations.stream().collect(Collectors.groupingBy(c -> c.getSpecialityEnum().getDescricao(), Collectors.counting()));
+        List<ConsultationModel> finalized = filteredConsultations.stream().filter(c -> c.getStatus() == ConsultationStatus.FINALIZADA && c.getClinicService() != null).collect(Collectors.toList());
+        BigDecimal revenue = finalized.stream().map(c -> c.getClinicService().getPrice()).reduce(BigDecimal.ZERO, BigDecimal::add);
+        Map<String, BigDecimal> revByService = finalized.stream().collect(Collectors.groupingBy(c -> c.getClinicService().getName(), Collectors.reducing(BigDecimal.ZERO, c -> c.getClinicService().getPrice(), BigDecimal::add)));
+        return new ReportSummaryDTO(total, byStatus, bySpeciality, revenue, revByService);
     }
 
     @Transactional
     public String addAttachmentToMedicalRecord(Long recordId, MultipartFile file) throws IOException {
         MedicalRecord medicalRecord = medicalRecordRepository.findById(recordId)
                 .orElseThrow(() -> new NoSuchElementException("Prontuário médico não encontrado com o ID: " + recordId));
-
         Map uploadResult = cloudinaryService.upload(file);
         String url = (String) uploadResult.get("url");
         String publicId = (String) uploadResult.get("public_id");
-
         MedicalAttachment attachment = MedicalAttachment.builder()
-                .medicalRecord(medicalRecord)
-                .fileName(file.getOriginalFilename())
-                .fileUrl(url)
-                .publicId(publicId)
-                .build();
-
+                .medicalRecord(medicalRecord).fileName(file.getOriginalFilename()).fileUrl(url).publicId(publicId).build();
         medicalAttachmentRepository.save(attachment);
-
         return url;
     }
 
     @Transactional
     public void createPrescription(Long consultationId, PrescriptionRequestDTO dto) {
-        ConsultationModel consultation = consultationRepository.findById(consultationId)
-                .orElseThrow(() -> new NoSuchElementException("Consulta não encontrada com o ID: " + consultationId));
-
-        Prescription prescription = Prescription.builder()
-                .consultation(consultation)
-                .medication(dto.medication())
-                .dosage(dto.dosage())
-                .instructions(dto.instructions())
-                .build();
-
+        ConsultationModel consultation = consultationRepository.findById(consultationId).orElseThrow();
+        Prescription prescription = Prescription.builder().consultation(consultation).medication(dto.medication()).dosage(dto.dosage()).instructions(dto.instructions()).build();
         prescriptionRepository.save(prescription);
     }
 
     @Transactional(readOnly = true)
     public List<PrescriptionTemplateResponseDTO> findMyTemplates(UserModel user) {
-        return prescriptionTemplateRepository.findByVeterinaryUserId(user.getId())
-                .stream()
-                .map(prescriptionTemplateMapper::toDTO)
-                .collect(Collectors.toList());
+        return prescriptionTemplateRepository.findByVeterinaryUserId(user.getId()).stream().map(prescriptionTemplateMapper::toDTO).collect(Collectors.toList());
     }
 
     @Transactional
     public PrescriptionTemplateResponseDTO createTemplate(PrescriptionTemplateRequestDTO dto, UserModel user) {
         PrescriptionTemplate template = prescriptionTemplateMapper.toModel(dto, user);
-        PrescriptionTemplate savedTemplate = prescriptionTemplateRepository.save(template);
-        return prescriptionTemplateMapper.toDTO(savedTemplate);
+        return prescriptionTemplateMapper.toDTO(prescriptionTemplateRepository.save(template));
     }
 
     @Transactional(readOnly = true)
