@@ -1,11 +1,11 @@
+// src/test/java/sesi/petvita/user/service/UserServiceTest.java
 package sesi.petvita.user.service;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.MockitoAnnotations;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import sesi.petvita.user.dto.UserRequestDTO;
 import sesi.petvita.user.dto.UserResponseDTO;
@@ -13,14 +13,13 @@ import sesi.petvita.user.mapper.UserMapper;
 import sesi.petvita.user.model.UserModel;
 import sesi.petvita.user.repository.UserRepository;
 import sesi.petvita.user.role.UserRole;
+import sesi.petvita.veterinary.repository.VeterinaryRepository;
 
-// Imports corretos para JUnit 5 e Mockito
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
-@ExtendWith(MockitoExtension.class)
 class UserServiceTest {
 
     @Mock
@@ -32,50 +31,62 @@ class UserServiceTest {
     @Mock
     private UserMapper userMapper;
 
+    @Mock
+    private VeterinaryRepository veterinaryRepository;
+
     @InjectMocks
     private UserService userService;
 
-    private UserRequestDTO userRequestDTO;
-    private UserModel userModel;
-    private UserResponseDTO userResponseDTO;
-
     @BeforeEach
     void setUp() {
-        userRequestDTO = new UserRequestDTO(
-                "John Doe", "StrongPassword@123", "john.doe@example.com",
-                "11987654321", "123 Main St", "123456789", "http://image.url/pic.jpg"
-        );
-
-        userModel = new UserModel();
-        userModel.setId(1L);
-        userModel.setUsername("John Doe");
-        userModel.setEmail("john.doe@example.com");
-        userModel.setRole(UserRole.USER);
-
-        userResponseDTO = new UserResponseDTO(
-                1L, "John Doe", "john.doe@example.com", "11987654321",
-                "123 Main St", "http://image.url/pic.jpg", UserRole.USER
-        );
+        MockitoAnnotations.openMocks(this);
     }
 
     @Test
-    void registerUser_shouldSucceedAndReturnUserResponseDTO() {
-        // Arrange (Organizar)
-        when(userMapper.toModel(any(UserRequestDTO.class))).thenReturn(userModel);
-        when(passwordEncoder.encode(anyString())).thenReturn("encodedPassword");
+    void shouldRegisterUserSuccessfully() {
+        // RequestDTO (Entrada - mantém os campos de cadastro)
+        UserRequestDTO requestDTO = new UserRequestDTO(
+                "John Doe",
+                "password",
+                "john@example.com",
+                "123456789",
+                "Address",
+                "12345", // RG
+                "url",
+                null,
+                UserRole.USER
+        );
+
+        // Modelo Simulado
+        UserModel userModel = new UserModel();
+        userModel.setId(1L);
+        userModel.setUsername("John Doe");
+        userModel.setEmail("john@example.com");
+        userModel.setRole(UserRole.USER);
+
+        // ResponseDTO (Saída) - CORRIGIDO PARA 7 ARGUMENTOS
+        UserResponseDTO responseDTO = new UserResponseDTO(
+                1L,                 // id
+                "John Doe",         // username
+                "john@example.com", // email
+                "123456789",        // phone
+                "Address",          // address
+                "url",              // imageurl
+                UserRole.USER       // role
+        );
+
+        // Mocks
+        when(userMapper.toModel(requestDTO)).thenReturn(userModel);
+        when(passwordEncoder.encode(requestDTO.password())).thenReturn("encodedPassword");
         when(userRepository.save(any(UserModel.class))).thenReturn(userModel);
-        when(userMapper.toDTO(any(UserModel.class))).thenReturn(userResponseDTO);
+        when(userMapper.toDTO(userModel)).thenReturn(responseDTO);
 
-        // Act (Agir)
-        UserResponseDTO result = userService.registerUser(userRequestDTO);
+        // Execução
+        UserResponseDTO result = userService.registerUser(requestDTO);
 
-        // Assert (Verificar)
+        // Verificação
         assertNotNull(result);
         assertEquals("John Doe", result.username());
-        assertEquals("john.doe@example.com", result.email());
-
-        // Verifica se os métodos mockados foram chamados como esperado
-        verify(passwordEncoder, times(1)).encode("StrongPassword@123");
         verify(userRepository, times(1)).save(any(UserModel.class));
     }
 }

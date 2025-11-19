@@ -1,3 +1,4 @@
+// sesi/petvita/user/mapper/UserMapper.java
 package sesi.petvita.user.mapper;
 
 import org.springframework.stereotype.Component;
@@ -11,7 +12,7 @@ public class UserMapper {
     public UserModel toModel(UserRequestDTO dto) {
         return UserModel.builder()
                 .username(dto.username())
-                .password(dto.password()) // A senha será codificada no service
+                .password(dto.password())
                 .email(dto.email())
                 .phone(dto.phone())
                 .address(dto.address())
@@ -22,13 +23,14 @@ public class UserMapper {
     }
 
     public UserResponseDTO toDTO(UserModel model) {
+        // Ordem: id, username, email, phone, address, imageurl, role
         return new UserResponseDTO(
                 model.getId(),
-                model.getUsername(),
+                model.getActualUsername(), // Usa o nome real
                 model.getEmail(),
                 model.getPhone(),
-                model.getAddress(),    // <-- ADICIONADO
-                model.getImageurl(),   // <-- ADICIONADO
+                model.getAddress(),
+                model.getImageurl(),
                 model.getRole()
         );
     }
