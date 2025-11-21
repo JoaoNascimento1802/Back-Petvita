@@ -1,6 +1,7 @@
 package sesi.petvita.consultation.service;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import sesi.petvita.clinic.model.ClinicService;
@@ -14,7 +15,9 @@ import sesi.petvita.consultation.repository.ConsultationRepository;
 import sesi.petvita.consultation.status.ConsultationStatus;
 import sesi.petvita.notification.service.EmailService;
 import sesi.petvita.notification.service.NotificationService;
+import sesi.petvita.pet.model.MedicalRecord;
 import sesi.petvita.pet.model.PetModel;
+import sesi.petvita.pet.repository.MedicalRecordRepository;
 import sesi.petvita.pet.repository.PetRepository;
 import sesi.petvita.user.model.UserModel;
 import sesi.petvita.user.role.UserRole;
@@ -26,6 +29,7 @@ import sesi.petvita.veterinary.speciality.SpecialityEnum;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.List;
@@ -45,6 +49,7 @@ public class ConsultationService {
     private final ConsultationMapper consultationMapper;
     private final NotificationService notificationService;
     private final EmailService emailService;
+    private final MedicalRecordRepository medicalRecordRepository;
 
     private final DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private final DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("HH:mm");
@@ -67,6 +72,16 @@ public class ConsultationService {
         return model;
     }
 
+    private ConsultationModel checkVetPermission(Long consultationId, UserModel user) {
+        ConsultationModel consultation = findByIdOrThrow(consultationId);
+        VeterinaryModel vet = consultation.getVeterinario();
+
+        if (vet.getUserAccount() == null || !vet.getUserAccount().getId().equals(user.getId())) {
+            throw new AccessDeniedException("Você não tem permissão para gerenciar esta consulta.");
+        }
+        return consultation;
+    }
+
     @Transactional
     public ConsultationResponseDTO create(ConsultationRequestDTO dto, UserModel user) {
         ClinicService service = clinicServiceRepository.findById(dto.clinicServiceId())
@@ -78,12 +93,8 @@ public class ConsultationService {
         }
 
         DayOfWeek dayOfWeek = dto.consultationdate().getDayOfWeek();
-
-        // --- CORREÇÃO APLICADA AQUI ---
-        // A busca agora é feita pelo ID da conta de usuário (professional_user_id) do veterinário
         WorkSchedule schedule = workScheduleRepository.findByProfessionalUserIdAndDayOfWeek(vet.getUserAccount().getId(), dayOfWeek)
                 .orElseThrow(() -> new IllegalStateException("Configuração de agenda não encontrada para este dia."));
-
         if (!schedule.isWorking() || dto.consultationtime().isBefore(schedule.getStartTime()) || dto.consultationtime().isAfter(schedule.getEndTime().minusMinutes(30))) {
             throw new IllegalStateException("O veterinário não atende no dia ou horário selecionado. Horário de atendimento: " + schedule.getStartTime() + " - " + schedule.getEndTime());
         }
@@ -94,7 +105,6 @@ public class ConsultationService {
 
         PetModel pet = petRepository.findById(dto.petId())
                 .orElseThrow(() -> new NoSuchElementException("Pet não encontrado com o ID: " + dto.petId()));
-
         ConsultationModel newConsultation = consultationMapper.toModel(dto, pet, user, vet, service);
         ConsultationModel savedConsultation = consultationRepository.save(newConsultation);
         String corpoEmailVet = "Você recebeu uma nova solicitação de consulta de " + user.getActualUsername() + ". Por favor, acesse o painel para aceitar ou recusar.";
@@ -104,8 +114,8 @@ public class ConsultationService {
     }
 
     @Transactional
-    public void acceptConsultation(Long consultationId) {
-        ConsultationModel consultation = findByIdOrThrow(consultationId);
+    public void acceptConsultation(Long consultationId, UserModel user) {
+        ConsultationModel consultation = checkVetPermission(consultationId, user);
         if (consultation.getStatus() != ConsultationStatus.PENDENTE) {
             throw new IllegalStateException("Apenas consultas com status 'PENDENTE' podem ser aceitas.");
         }
@@ -118,8 +128,8 @@ public class ConsultationService {
     }
 
     @Transactional
-    public void rejectConsultation(Long consultationId) {
-        ConsultationModel consultation = findByIdOrThrow(consultationId);
+    public void rejectConsultation(Long consultationId, UserModel user) {
+        ConsultationModel consultation = checkVetPermission(consultationId, user);
         if (consultation.getStatus() != ConsultationStatus.PENDENTE) {
             throw new IllegalStateException("Apenas consultas com status 'PENDENTE' podem ser recusadas.");
         }
@@ -190,8 +200,8 @@ public class ConsultationService {
     }
 
     @Transactional
-    public void finalizeConsultation(Long consultationId) {
-        ConsultationModel consultation = findByIdOrThrow(consultationId);
+    public void finalizeConsultation(Long consultationId, UserModel user) {
+        ConsultationModel consultation = checkVetPermission(consultationId, user);
         if (consultation.getStatus() != ConsultationStatus.AGENDADA) {
             throw new IllegalStateException("Apenas consultas 'AGENDADAS' podem ser finalizadas.");
         }
@@ -201,12 +211,30 @@ public class ConsultationService {
     }
 
     @Transactional
-    public void writeReport(Long consultationId, String report) {
-        ConsultationModel consultation = findByIdOrThrow(consultationId);
+    public void writeReport(Long consultationId, String report, UserModel user) {
+        ConsultationModel consultation = checkVetPermission(consultationId, user);
+
         if (consultation.getStatus() != ConsultationStatus.FINALIZADA && consultation.getStatus() != ConsultationStatus.AGENDADA) {
             throw new IllegalStateException("O relatório só pode ser preenchido para consultas 'AGENDADAS' ou 'FINALIZADAS'.");
         }
+
         consultation.setDoctorReport(report);
+
+        if (consultation.getMedicalRecord() == null) {
+            MedicalRecord newRecord = MedicalRecord.builder()
+                    .consultation(consultation)
+                    .veterinary(consultation.getVeterinario())
+                    .diagnosis(report)
+                    .treatment("")
+                    .pet(consultation.getPet()) // --- CORREÇÃO AQUI: Passando o Pet explicitamente ---
+                    .build();
+            medicalRecordRepository.save(newRecord);
+            consultation.setMedicalRecord(newRecord);
+        } else {
+            consultation.getMedicalRecord().setDiagnosis(report);
+            medicalRecordRepository.save(consultation.getMedicalRecord());
+        }
+
         consultationRepository.save(consultation);
         notificationService.createNotification(consultation.getUsuario(), "O relatório da sua consulta para " + consultation.getPet().getName() + " está disponível.", consultation.getId());
     }
@@ -218,7 +246,7 @@ public class ConsultationService {
 
     @Transactional(readOnly = true)
     public List<ConsultationResponseDTO> findForAuthenticatedUser(UserModel user) {
-        return consultationRepository.findByUsuarioIdWithDetails(user.getId())
+        return consultationRepository.findByUsuarioOrderByConsultationdateDesc(user)
                 .stream()
                 .map(consultationMapper::toDTO)
                 .collect(Collectors.toList());
@@ -234,7 +262,7 @@ public class ConsultationService {
     @Transactional(readOnly = true)
     public List<ConsultationResponseDTO> findForAuthenticatedVeterinary(UserModel user) {
         VeterinaryModel vet = veterinaryRepository.findByUserAccount(user).orElseThrow(() -> new NoSuchElementException("Perfil de veterinário não encontrado."));
-        return consultationRepository.findByVeterinarioId(vet.getId()).stream().map(consultationMapper::toDTO).collect(Collectors.toList());
+        return consultationRepository.findByVeterinarioOrderByConsultationdateDesc(vet).stream().map(consultationMapper::toDTO).collect(Collectors.toList());
     }
 
     @Transactional

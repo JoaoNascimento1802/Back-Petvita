@@ -8,5 +8,7 @@ import java.util.List;
 
 @Repository
 public interface MedicalRecordRepository extends JpaRepository<MedicalRecord, Long> {
-    List<MedicalRecord> findByPetIdOrderByRecordDateDesc(Long petId);
+    // Busca prontuários pelo ID do Pet (útil para a timeline)
+    // Acessa o Pet através da Consulta: MedicalRecord -> Consultation -> Pet
+    List<MedicalRecord> findByConsultation_Pet_IdOrderByCreatedAtDesc(Long petId);
 }

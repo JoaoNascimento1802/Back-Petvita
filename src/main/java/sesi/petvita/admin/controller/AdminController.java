@@ -4,11 +4,15 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import sesi.petvita.admin.dto.AdminUserCreateRequestDTO;
+import sesi.petvita.admin.dto.ReportSummaryDTO;
 import sesi.petvita.admin.dto.UserDetailsWithPetsDTO;
 import sesi.petvita.admin.service.AdminReportService;
 import sesi.petvita.consultation.dto.ConsultationResponseDTO;
@@ -21,8 +25,6 @@ import sesi.petvita.user.service.UserService;
 import sesi.petvita.veterinary.dto.VeterinaryResponseDTO;
 import sesi.petvita.veterinary.service.VeterinaryService;
 import sesi.petvita.veterinary.speciality.SpecialityEnum;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -117,17 +119,20 @@ public class AdminController {
         return ResponseEntity.ok(consultationService.updateConsultationByAdmin(id, dto));
     }
 
-    // O MÉTODO GET /chats/conversations FOI REMOVIDO DAQUI
-
     @GetMapping("/reports/summary")
     @Operation(summary = "[ADMIN] Ver relatório customizado por período")
-    public ResponseEntity<sesi.petvita.admin.dto.ReportSummaryDTO> getReportSummary(
-            @RequestParam LocalDate startDate,
-            @RequestParam LocalDate endDate,
-            @RequestParam Optional<Long> veterinaryId,
-            @RequestParam Optional<SpecialityEnum> speciality) {
+    public ResponseEntity<ReportSummaryDTO> getReportSummary(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(required = false) Optional<Long> veterinaryId,
+            @RequestParam(required = false) Optional<SpecialityEnum> speciality) {
 
-        sesi.petvita.admin.dto.ReportSummaryDTO report = adminReportService.getSummaryByDateRange(startDate, endDate, veterinaryId, speciality);
+        // Validação de segurança contra datas nulas
+        if (startDate == null || endDate == null) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        ReportSummaryDTO report = adminReportService.getSummaryByDateRange(startDate, endDate, veterinaryId, speciality);
         return ResponseEntity.ok(report);
     }
 }

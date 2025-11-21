@@ -112,7 +112,7 @@ public class VeterinaryController {
         return ResponseEntity.ok(veterinaryService.getMonthlyReport(user));
     }
 
-    // NOVOS ENDPOINTS - FASE 3
+    // NOVOS ENDPOINTS - FASE 3 E CORREÇÕES
 
     @PostMapping("/medical-records/{recordId}/attachments")
     @Operation(summary = "[VET] Anexar um arquivo a um prontuário médico")
@@ -123,11 +123,20 @@ public class VeterinaryController {
         return ResponseEntity.status(HttpStatus.CREATED).body(Map.of("url", url));
     }
 
+    // --- NOVO ENDPOINT DE LISTAGEM (A CORREÇÃO PRINCIPAL) ---
+    @GetMapping("/medical-records/{recordId}/attachments")
+    @Operation(summary = "[VET/USER] Listar anexos de um prontuário")
+    public ResponseEntity<List<MedicalAttachmentResponseDTO>> getAttachments(
+            @PathVariable Long recordId) {
+        return ResponseEntity.ok(veterinaryService.getAttachmentsByRecordId(recordId));
+    }
+    // --------------------------------------------------------
+
     @PostMapping("/consultations/{consultationId}/prescriptions")
     @Operation(summary = "[VET] Criar uma nova prescrição para uma consulta")
     public ResponseEntity<Void> createPrescription(
             @PathVariable Long consultationId,
-            @Valid @RequestBody PrescriptionRequestDTO dto) {
+            @RequestBody PrescriptionRequestDTO dto) { // Removido @Valid para permitir campos livres
         veterinaryService.createPrescription(consultationId, dto);
         return ResponseEntity.status(HttpStatus.CREATED).build();
     }

@@ -17,6 +17,7 @@ import sesi.petvita.user.model.UserModel;
 import sesi.petvita.veterinary.speciality.SpecialityEnum;
 
 import java.time.LocalDate;
+import java.time.LocalTime; // Adicionado import
 import java.util.List;
 
 @RestController
@@ -47,17 +48,28 @@ public class ConsultationController {
 
     @PostMapping("/{id}/accept")
     @Operation(summary = "[VET] Aceitar uma consulta pendente")
-    public ResponseEntity<Void> accept(@PathVariable Long id) {
-        service.acceptConsultation(id);
+    public ResponseEntity<Void> accept(@PathVariable Long id, @AuthenticationPrincipal UserModel user) {
+        // ADICIONADO: Passando o usuário para validação
+        service.acceptConsultation(id, user);
         return ResponseEntity.ok().build();
     }
 
     @PostMapping("/{id}/reject")
     @Operation(summary = "[VET] Recusar uma consulta pendente")
-    public ResponseEntity<Void> reject(@PathVariable Long id) {
-        service.rejectConsultation(id);
+    public ResponseEntity<Void> reject(@PathVariable Long id, @AuthenticationPrincipal UserModel user) {
+        // ADICIONADO: Passando o usuário para validação
+        service.rejectConsultation(id, user);
         return ResponseEntity.ok().build();
     }
+
+    // --- FUNCIONALIDADE ADICIONADA QUE FALTAVA ---
+    @PostMapping("/{id}/finalize")
+    @Operation(summary = "[VET] Finalizar uma consulta agendada")
+    public ResponseEntity<Void> finalize(@PathVariable Long id, @AuthenticationPrincipal UserModel user) {
+        service.finalizeConsultation(id, user);
+        return ResponseEntity.ok().build();
+    }
+    // ---------------------------------------------
 
     @PostMapping("/{id}/cancel")
     @Operation(summary = "[USER/VET] Cancelar uma consulta agendada")
@@ -68,8 +80,9 @@ public class ConsultationController {
 
     @PutMapping("/{id}/report")
     @Operation(summary = "[VET] Adicionar/Editar relatório de uma consulta finalizada")
-    public ResponseEntity<Void> writeReport(@PathVariable Long id, @RequestBody String report) {
-        service.writeReport(id, report);
+    public ResponseEntity<Void> writeReport(@PathVariable Long id, @RequestBody String report, @AuthenticationPrincipal UserModel user) {
+        // ADICIONADO: Passando o usuário para validação
+        service.writeReport(id, report, user);
         return ResponseEntity.ok().build();
     }
 
@@ -81,8 +94,6 @@ public class ConsultationController {
             @AuthenticationPrincipal UserModel user) {
         return ResponseEntity.ok(service.updateConsultation(id, dto, user));
     }
-
-    // O ENDPOINT GET /all FOI REMOVIDO DAQUI. A funcionalidade agora está centralizada e segura em /admin/consultations
 
     @GetMapping("/by-date")
     @Operation(summary = "Buscar consultas por data")
@@ -102,7 +113,6 @@ public class ConsultationController {
         return ResponseEntity.ok(service.findForAuthenticatedVeterinary(user));
     }
 
-    // Este endpoint foi mantido pois é chamado pelo AdminController, mas a rota principal de acesso é /admin/consultations/{id}
     @PutMapping("/consultations/{id}")
     @Operation(summary = "[ADMIN] Atualizar dados de uma consulta")
     public ResponseEntity<ConsultationResponseDTO> updateConsultation(@PathVariable Long id, @RequestBody @Valid ConsultationUpdateRequestDTO dto) {
@@ -122,7 +132,7 @@ public class ConsultationController {
     }
 
     @GetMapping("/by-range")
-    @Operation(summary = "Buscar consultas por intervalo de datas (para calendários)")
+    @Operation(summary = "Buscar consultas por intervalo de datas")
     public ResponseEntity<List<ConsultationResponseDTO>> findByDateRange(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {

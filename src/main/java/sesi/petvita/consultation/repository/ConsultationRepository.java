@@ -1,8 +1,10 @@
+// sesi/petvita/consultation/repository/ConsultationRepository.java
 package sesi.petvita.consultation.repository;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
 import sesi.petvita.consultation.model.ConsultationModel;
 import sesi.petvita.consultation.status.ConsultationStatus;
 import sesi.petvita.user.model.UserModel;
@@ -14,30 +16,38 @@ import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
 
+@Repository
 public interface ConsultationRepository extends JpaRepository<ConsultationModel, Long> {
 
-    // --- CORREÇÃO PARA findById ---
-    // Este novo método busca a consulta pelo ID e já carrega (FETCH) todas as entidades relacionadas.
+    // Lista consultas do Usuário (Cliente) ordenadas
+    List<ConsultationModel> findByUsuarioOrderByConsultationdateDesc(UserModel usuario);
+
+    // --- ADICIONADO: Lista consultas do Veterinário ordenadas (Faltava este método) ---
+    List<ConsultationModel> findByVeterinarioOrderByConsultationdateDesc(VeterinaryModel veterinario);
+
+    // --- CORREÇÃO PARA findById (Detalhes) ---
+    // Usamos LEFT JOIN FETCH para garantir que traga os dados mesmo se algum relacionamento for nulo
     @Query("SELECT c FROM ConsultationModel c " +
             "JOIN FETCH c.pet " +
             "JOIN FETCH c.usuario " +
             "JOIN FETCH c.veterinario v " +
-            "JOIN FETCH v.userAccount " +
-            "JOIN FETCH c.clinicService " +
+            "LEFT JOIN FETCH v.userAccount " + // LEFT JOIN é mais seguro
+            "LEFT JOIN FETCH c.clinicService " + // LEFT JOIN é mais seguro
             "WHERE c.id = :id")
     Optional<ConsultationModel> findByIdWithDetails(@Param("id") Long id);
 
-
+    // Lista consultas com detalhes para o Usuário
     @Query("SELECT c FROM ConsultationModel c " +
             "JOIN FETCH c.pet " +
             "JOIN FETCH c.usuario " +
             "JOIN FETCH c.veterinario v " +
-            "JOIN FETCH v.userAccount " +
-            "JOIN FETCH c.clinicService " +
-            "WHERE c.usuario.id = :usuarioId")
+            "LEFT JOIN FETCH v.userAccount " +
+            "LEFT JOIN FETCH c.clinicService " +
+            "WHERE c.usuario.id = :usuarioId " +
+            "ORDER BY c.consultationdate DESC, c.consultationtime DESC")
     List<ConsultationModel> findByUsuarioIdWithDetails(@Param("usuarioId") Long usuarioId);
 
-
+    // Filtros (Admin/Relatórios)
     @Query("SELECT c FROM ConsultationModel c " +
             "JOIN FETCH c.pet " +
             "JOIN FETCH c.veterinario " +
@@ -53,9 +63,14 @@ public interface ConsultationRepository extends JpaRepository<ConsultationModel,
             @Param("speciality") SpecialityEnum speciality
     );
 
-    @Query("SELECT c.consultationtime FROM ConsultationModel c WHERE c.veterinario.id = :veterinaryId AND c.consultationdate = :date AND c.status IN ('AGENDADA', 'PENDENTE')")
+    // Verifica horários ocupados
+    @Query("SELECT c.consultationtime FROM ConsultationModel c " +
+            "WHERE c.veterinario.id = :veterinaryId " +
+            "AND c.consultationdate = :date " +
+            "AND c.status IN ('AGENDADA', 'PENDENTE')")
     List<LocalTime> findBookedTimesByVeterinarianAndDate(@Param("veterinaryId") Long veterinaryId, @Param("date") LocalDate date);
 
+    // Métodos padrão do JPA
     List<ConsultationModel> findByVeterinarioAndConsultationdateBetween(VeterinaryModel vet, LocalDate startDate, LocalDate endDate);
 
     List<ConsultationModel> findByUsuarioAndConsultationdateBetween(UserModel user, LocalDate startDate, LocalDate endDate);

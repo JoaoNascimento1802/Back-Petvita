@@ -1,4 +1,3 @@
-// sesi/petvita/user/service/UserService.java
 package sesi.petvita.user.service;
 
 import lombok.RequiredArgsConstructor;
@@ -48,7 +47,7 @@ public class UserService {
     private final PetMapper petMapper;
     private final CloudinaryService cloudinaryService;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
-    private final EmailService emailService;
+    private final EmailService emailService; // Injeção do EmailService
     private final WorkScheduleRepository workScheduleRepository;
     private final TokenService tokenService;
     private final VeterinaryRepository veterinaryRepository;
@@ -77,7 +76,6 @@ public class UserService {
 
         if (dto.username() != null && !dto.username().isBlank()) {
             authenticatedUser.setUsername(dto.username());
-
             if (authenticatedUser.getRole() == UserRole.VETERINARY) {
                 veterinaryRepository.findByUserAccount(authenticatedUser)
                         .ifPresent(vet -> {
@@ -91,7 +89,6 @@ public class UserService {
         if (dto.address() != null && !dto.address().isBlank()) authenticatedUser.setAddress(dto.address());
 
         UserModel savedUser = userRepository.save(authenticatedUser);
-
         if (emailChanged) {
             token = tokenService.generateToken(savedUser);
         }
@@ -116,14 +113,10 @@ public class UserService {
 
     @Transactional
     public UserResponseDTO registerUser(UserRequestDTO requestDTO) {
-        // Agora o mapper vai trazer a ROLE corretamente
         UserModel user = userMapper.toModel(requestDTO);
-
-        // Validação de segurança extra
         if (user.getRole() == null) {
             user.setRole(UserRole.USER);
         } else if (user.getRole() == UserRole.ADMIN || user.getRole() == UserRole.EMPLOYEE) {
-            // Impede criação de Admin/Employee por rota pública
             user.setRole(UserRole.USER);
         }
 
@@ -131,11 +124,23 @@ public class UserService {
         user.setImageurl(DEFAULT_IMAGE_URL);
 
         UserModel savedUser = userRepository.save(user);
-
-        // Se a role veio como VETERINARY, cria o perfil
         if (savedUser.getRole() == UserRole.VETERINARY) {
             createVeterinaryProfile(savedUser, requestDTO.crmv());
         }
+
+        // --- ENVIO DE E-MAIL DE BOAS-VINDAS ---
+        try {
+            Map<String, Object> emailModel = new HashMap<>();
+            emailModel.put("titulo", "Bem-vindo(a) à Pet Vita!");
+            emailModel.put("nomeUsuario", savedUser.getActualUsername());
+            emailModel.put("corpoMensagem", "Estamos muito felizes em ter você conosco! Agora você pode agendar consultas, gerenciar os cuidados dos seus pets e muito mais.");
+            emailModel.put("mostrarDetalhesConsulta", false); // Não é uma consulta
+
+            emailService.sendHtmlEmailFromTemplate(savedUser.getEmail(), "Bem-vindo(a) ao Pet Vita!", emailModel);
+        } catch (Exception e) {
+            System.err.println("Falha ao enviar e-mail de boas-vindas: " + e.getMessage());
+        }
+        // ---------------------------------------
 
         return userMapper.toDTO(savedUser);
     }
@@ -153,11 +158,23 @@ public class UserService {
         user.setImageurl(dto.imageurl() != null && !dto.imageurl().isEmpty() ? dto.imageurl() : DEFAULT_IMAGE_URL);
 
         UserModel savedUser = userRepository.save(user);
-
         if (dto.role() == UserRole.VETERINARY) {
             createVeterinaryProfile(savedUser, dto.crmv());
         } else if (dto.role() == UserRole.EMPLOYEE) {
             initializeWorkScheduleFor(savedUser);
+        }
+
+        // Opcional: Enviar email com a senha provisória para o usuário criado pelo admin
+        try {
+            Map<String, Object> emailModel = new HashMap<>();
+            emailModel.put("titulo", "Sua conta Pet Vita foi criada");
+            emailModel.put("nomeUsuario", savedUser.getActualUsername());
+            emailModel.put("corpoMensagem", "Uma conta foi criada para você na Pet Vita.\n\nSua senha provisória é: " + dto.password() + "\n\nRecomendamos que você altere sua senha ao fazer login.");
+            emailModel.put("mostrarDetalhesConsulta", false);
+
+            emailService.sendHtmlEmailFromTemplate(savedUser.getEmail(), "Bem-vindo(a) à equipe Pet Vita", emailModel);
+        } catch (Exception e) {
+            System.err.println("Falha ao enviar e-mail de criação de conta: " + e.getMessage());
         }
 
         return userMapper.toDTO(savedUser);
@@ -183,12 +200,10 @@ public class UserService {
     public UserResponseDTO updateUser(Long id, UserUpdateRequestDTO requestDTO) {
         UserModel existingUser = userRepository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("Utilizador não encontrado com o ID: " + id));
-
         if (requestDTO.username() != null) existingUser.setUsername(requestDTO.username());
         if (requestDTO.email() != null) existingUser.setEmail(requestDTO.email());
         if (requestDTO.phone() != null) existingUser.setPhone(requestDTO.phone());
         if (requestDTO.address() != null) existingUser.setAddress(requestDTO.address());
-
         if (requestDTO.password() != null && !requestDTO.password().isEmpty()) {
             existingUser.setPassword(passwordEncoder.encode(requestDTO.password()));
         }
@@ -201,7 +216,6 @@ public class UserService {
     public void deleteUser(Long id) {
         UserModel user = userRepository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("Utilizador não encontrado com o ID: " + id));
-
         if (user.getImagePublicId() != null && !user.getImagePublicId().isEmpty()) {
             try {
                 cloudinaryService.delete(user.getImagePublicId());
@@ -226,7 +240,6 @@ public class UserService {
     public void requestPasswordReset(String userEmail) {
         UserModel user = userRepository.findByEmail(userEmail)
                 .orElseThrow(() -> new NoSuchElementException("Utilizador não encontrado com o e-mail: " + userEmail));
-
         String token = UUID.randomUUID().toString();
         PasswordResetToken resetToken = new PasswordResetToken(token, user);
         passwordResetTokenRepository.save(resetToken);
@@ -245,7 +258,6 @@ public class UserService {
     public void resetPassword(String token, String newPassword) {
         PasswordResetToken resetToken = passwordResetTokenRepository.findByToken(token)
                 .orElseThrow(() -> new IllegalStateException("Token de redefinição inválido ou expirado."));
-
         if (resetToken.getExpiryDate().isBefore(LocalDateTime.now())) {
             passwordResetTokenRepository.delete(resetToken);
             throw new IllegalStateException("Token de redefinição expirado.");

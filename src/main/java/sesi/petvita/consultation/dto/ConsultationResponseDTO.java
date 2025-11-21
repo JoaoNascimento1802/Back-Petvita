@@ -17,11 +17,13 @@ public record ConsultationResponseDTO(
         String doctorReport,
         Long petId,
         String petName,
+        String petImageUrl, // Adicionado para exibir foto do pet nos detalhes
         Long usuarioId,
         String userName,
         Long veterinaryId,
         String veterinaryName,
         String serviceName,
         BigDecimal servicePrice,
-        SpecialityEnum speciality
+        SpecialityEnum speciality,
+        Long medicalRecordId // --- CAMPO CRÍTICO ADICIONADO ---
 ) {}

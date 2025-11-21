@@ -7,6 +7,7 @@ import jakarta.persistence.*;
 import lombok.*;
 import sesi.petvita.clinic.model.ClinicService;
 import sesi.petvita.notification.model.ChatMessage; // Importar
+import sesi.petvita.pet.model.MedicalRecord;
 import sesi.petvita.pet.model.PetModel;
 import sesi.petvita.user.model.UserModel;
 import sesi.petvita.veterinary.model.VeterinaryModel;
@@ -62,6 +63,9 @@ public class ConsultationModel {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "veterinary_id")
     private VeterinaryModel veterinario;
+
+    @OneToOne(mappedBy = "consultation", cascade = CascadeType.ALL, orphanRemoval = true)
+    private MedicalRecord medicalRecord;
 
     // --- ADICIONADO PARA O CHAT SQL ---
     @JsonManagedReference
