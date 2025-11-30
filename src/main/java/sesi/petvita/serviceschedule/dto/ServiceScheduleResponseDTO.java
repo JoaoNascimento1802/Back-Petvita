@@ -6,11 +6,12 @@ import java.time.LocalTime;
 
 public record ServiceScheduleResponseDTO(
         Long id,
+        String chatRoomId, // <--- ADICIONADO
         LocalDate scheduleDate,
         LocalTime scheduleTime,
         String status,
         String observations,
-        String employeeReport, // --- NOVO CAMPO ADICIONADO ---
+        String employeeReport,
         Long petId,
         String petName,
         Long clientId,

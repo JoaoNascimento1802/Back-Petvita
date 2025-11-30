@@ -27,11 +27,11 @@ public class ConsultationMapper {
     }
 
     public ConsultationResponseDTO toDTO(ConsultationModel model) {
-        // Verifica se existe prontuário para pegar o ID
         Long recordId = (model.getMedicalRecord() != null) ? model.getMedicalRecord().getId() : null;
-
+        
         return new ConsultationResponseDTO(
                 model.getId(),
+                model.getChatRoomId(), // <--- MAPEANDO O NOVO CAMPO
                 model.getConsultationdate(),
                 model.getConsultationtime(),
                 model.getStatus(),
@@ -40,7 +40,7 @@ public class ConsultationMapper {
                 model.getDoctorReport(),
                 model.getPet().getId(),
                 model.getPet().getName(),
-                model.getPet().getImageurl(), // Mapeia a imagem do pet
+                model.getPet().getImageurl(),
                 model.getUsuario().getId(),
                 model.getUsuario().getActualUsername(),
                 model.getVeterinario().getId(),
@@ -48,7 +48,7 @@ public class ConsultationMapper {
                 model.getClinicService().getName(),
                 model.getClinicService().getPrice(),
                 model.getSpecialityEnum(),
-                recordId // Mapeia o ID do prontuário
+                recordId
         );
     }
 }

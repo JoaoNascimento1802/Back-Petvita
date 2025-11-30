@@ -5,9 +5,9 @@ import lombok.*;
 import sesi.petvita.clinic.model.ClinicService;
 import sesi.petvita.pet.model.PetModel;
 import sesi.petvita.user.model.UserModel;
-
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.UUID; // Importar UUID
 
 @Entity
 @Table(name = "service_schedules")
@@ -19,6 +19,11 @@ public class ServiceScheduleModel {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    // --- NOVO CAMPO PARA GARANTIR CHAT ÚNICO ---
+    @Column(name = "chat_room_id", unique = true, nullable = false)
+    private String chatRoomId;
+    // -------------------------------------------
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "pet_id", nullable = false)
@@ -48,7 +53,13 @@ public class ServiceScheduleModel {
     @Builder.Default
     private String status = "PENDENTE";
 
-    // --- NOVO CAMPO ADICIONADO ---
     @Column(columnDefinition = "TEXT")
     private String employeeReport;
+
+    @PrePersist
+    protected void onCreate() {
+        if (this.chatRoomId == null) {
+            this.chatRoomId = UUID.randomUUID().toString();
+        }
+    }
 }

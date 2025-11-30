@@ -140,13 +140,14 @@ public class ServiceScheduleService {
         DayOfWeek dayOfWeek = date.getDayOfWeek();
         WorkSchedule schedule = workScheduleRepository.findByProfessionalUserIdAndDayOfWeek(employeeId, dayOfWeek)
                 .orElse(null);
+
         if (schedule == null || !schedule.isWorking() || schedule.getStartTime() == null || schedule.getEndTime() == null) {
             return new ArrayList<>();
         }
 
         List<LocalTime> allPossibleSlots = new ArrayList<>();
         LocalTime currentSlot = schedule.getStartTime();
-        long slotInterval = 45;
+        long slotInterval = 45; 
 
         while (currentSlot.isBefore(schedule.getEndTime())) {
             allPossibleSlots.add(currentSlot);
@@ -154,14 +155,26 @@ public class ServiceScheduleService {
         }
 
         List<LocalTime> bookedSlots = scheduleRepository.findBookedTimesByEmployeeAndDate(
-                employeeId,
-                date,
+                employeeId, 
+                date, 
                 List.of(STATUS_AGENDADA, STATUS_PENDENTE)
         );
-
-        return allPossibleSlots.stream()
+        
+        // 1. Filtra ocupados
+        List<LocalTime> availableSlots = allPossibleSlots.stream()
                 .filter(slot -> !bookedSlots.contains(slot))
                 .collect(Collectors.toList());
+
+        // --- LÓGICA NOVA: FILTRAR HORÁRIOS PASSADOS ---
+        if (date.equals(LocalDate.now())) {
+            LocalTime now = LocalTime.now();
+            availableSlots = availableSlots.stream()
+                    .filter(slot -> slot.isAfter(now.plusMinutes(1)))
+                    .collect(Collectors.toList());
+        }
+        // ----------------------------------------------
+
+        return availableSlots;
     }
 
     @Transactional

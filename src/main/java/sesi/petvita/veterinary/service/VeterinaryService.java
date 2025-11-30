@@ -179,6 +179,7 @@ public class VeterinaryService {
                 .orElseThrow(() -> new NoSuchElementException("Veterinário não encontrado: " + vetId));
 
         DayOfWeek dayOfWeek = date.getDayOfWeek();
+        
         WorkSchedule schedule = workScheduleRepository.findByProfessionalUserIdAndDayOfWeek(vet.getUserAccount().getId(), dayOfWeek)
                 .orElse(null);
 
@@ -191,13 +192,27 @@ public class VeterinaryService {
 
         while (currentSlot.isBefore(schedule.getEndTime())) {
             allPossibleSlots.add(currentSlot);
-            currentSlot = currentSlot.plusMinutes(45);
+            currentSlot = currentSlot.plusMinutes(45); 
         }
 
         List<LocalTime> bookedSlots = consultationRepository.findBookedTimesByVeterinarianAndDate(vetId, date);
-        return allPossibleSlots.stream()
+        
+        // 1. Filtra horários já ocupados
+        List<LocalTime> availableSlots = allPossibleSlots.stream()
                 .filter(slot -> !bookedSlots.contains(slot))
                 .collect(Collectors.toList());
+
+        // --- LÓGICA NOVA: FILTRAR HORÁRIOS PASSADOS SE FOR HOJE ---
+        if (date.equals(LocalDate.now())) {
+            LocalTime now = LocalTime.now();
+            // Filtra apenas horários futuros (adicionando uma pequena margem de 1 minuto para evitar bugs de milissegundos)
+            availableSlots = availableSlots.stream()
+                    .filter(slot -> slot.isAfter(now.plusMinutes(1))) 
+                    .collect(Collectors.toList());
+        }
+        // -----------------------------------------------------------
+
+        return availableSlots;
     }
 
     @Transactional

@@ -20,20 +20,18 @@ public class ServiceScheduleMapper {
                 .scheduleDate(dto.scheduleDate())
                 .scheduleTime(dto.scheduleTime())
                 .observations(dto.observations())
-                // --- CORREÇÃO APLICADA AQUI ---
-                // A linha ".status("AGENDADO")" foi removida.
-                // Agora, o Builder usará o valor padrão ("PENDENTE") definido na entidade ServiceScheduleModel.
                 .build();
     }
 
     public ServiceScheduleResponseDTO toDTO(ServiceScheduleModel model) {
         return new ServiceScheduleResponseDTO(
                 model.getId(),
+                model.getChatRoomId(), // <--- MAPEAMENTO ADICIONADO AQUI
                 model.getScheduleDate(),
                 model.getScheduleTime(),
                 model.getStatus(),
                 model.getObservations(),
-                model.getEmployeeReport(), // --- NOVO CAMPO ADICIONADO ---
+                model.getEmployeeReport(),
                 model.getPet().getId(),
                 model.getPet().getName(),
                 model.getClient().getId(),

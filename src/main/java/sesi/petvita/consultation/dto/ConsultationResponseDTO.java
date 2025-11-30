@@ -2,13 +2,13 @@ package sesi.petvita.consultation.dto;
 
 import sesi.petvita.consultation.status.ConsultationStatus;
 import sesi.petvita.veterinary.speciality.SpecialityEnum;
-
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
 
 public record ConsultationResponseDTO(
         Long id,
+        String chatRoomId, // <--- ADICIONADO
         LocalDate consultationdate,
         LocalTime consultationtime,
         ConsultationStatus status,
@@ -17,7 +17,7 @@ public record ConsultationResponseDTO(
         String doctorReport,
         Long petId,
         String petName,
-        String petImageUrl, // Adicionado para exibir foto do pet nos detalhes
+        String petImageUrl,
         Long usuarioId,
         String userName,
         Long veterinaryId,
@@ -25,5 +25,5 @@ public record ConsultationResponseDTO(
         String serviceName,
         BigDecimal servicePrice,
         SpecialityEnum speciality,
-        Long medicalRecordId // --- CAMPO CRÍTICO ADICIONADO ---
+        Long medicalRecordId
 ) {}
