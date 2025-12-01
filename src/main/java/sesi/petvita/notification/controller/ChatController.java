@@ -1,4 +1,3 @@
-// sesi/petvita/notification/controller/ChatController.java
 package sesi.petvita.notification.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -11,6 +10,7 @@ import sesi.petvita.notification.service.ChatService;
 import sesi.petvita.user.model.UserModel;
 
 import java.nio.file.AccessDeniedException;
+import java.util.Map; // Import necessário
 
 @RestController
 @RequestMapping("/chat")
@@ -20,26 +20,37 @@ public class ChatController {
 
     private final ChatService chatService;
 
-    // ROTA MODIFICADA: Agora específica para Consultas (Vets)
     @PostMapping("/consultation/{consultationId}")
-    @Operation(summary = "Enviar mensagem em um chat de CONSULTA (Veterinário)")
+    @Operation(summary = "Enviar mensagem em um chat de CONSULTA")
     public ResponseEntity<Void> sendMessageToConsultation(
             @PathVariable Long consultationId,
-            @RequestBody String content,
+            @RequestBody Map<String, String> payload, // CORREÇÃO: Recebe um Objeto JSON
             @AuthenticationPrincipal UserModel user) throws AccessDeniedException {
+
+        // Extrai apenas o texto da mensagem
+        String content = payload.get("content");
+
+        if (content == null || content.trim().isEmpty()) {
+            return ResponseEntity.badRequest().build();
+        }
 
         chatService.sendMessageToConsultation(consultationId, content, user);
         return ResponseEntity.ok().build();
     }
 
-    // --- NOVA ROTA ADICIONADA ---
-    // Rota específica para Serviços (Funcionários)
     @PostMapping("/service/{serviceScheduleId}")
-    @Operation(summary = "Enviar mensagem em um chat de SERVIÇO (Funcionário)")
+    @Operation(summary = "Enviar mensagem em um chat de SERVIÇO")
     public ResponseEntity<Void> sendMessageToService(
             @PathVariable Long serviceScheduleId,
-            @RequestBody String content,
+            @RequestBody Map<String, String> payload, // CORREÇÃO: Recebe um Objeto JSON
             @AuthenticationPrincipal UserModel user) throws AccessDeniedException {
+
+        // Extrai apenas o texto da mensagem
+        String content = payload.get("content");
+
+        if (content == null || content.trim().isEmpty()) {
+            return ResponseEntity.badRequest().build();
+        }
 
         chatService.sendMessageToService(serviceScheduleId, content, user);
         return ResponseEntity.ok().build();

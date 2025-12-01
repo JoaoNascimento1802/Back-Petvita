@@ -100,6 +100,19 @@ public class ServiceScheduleService {
     }
 
     @Transactional(readOnly = true)
+    public ServiceScheduleResponseDTO findByIdForUser(Long id, UserModel user) {
+        ServiceScheduleModel schedule = scheduleRepository.findByIdWithDetails(id)
+                .orElseThrow(() -> new NoSuchElementException("Agendamento não encontrado."));
+
+        // Segurança: Verifica se o usuário é o dono do agendamento
+        if (!schedule.getClient().getId().equals(user.getId())) {
+            throw new AccessDeniedException("Você não tem permissão para visualizar este agendamento.");
+        }
+
+        return mapper.toDTO(schedule);
+    }
+
+    @Transactional(readOnly = true)
     public List<ServiceScheduleResponseDTO> findForAuthenticatedUser(UserModel client) {
         return scheduleRepository.findByClientIdOrderByScheduleDateDesc(client.getId())
                 .stream()

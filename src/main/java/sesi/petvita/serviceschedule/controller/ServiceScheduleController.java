@@ -30,6 +30,14 @@ public class ServiceScheduleController {
         return ResponseEntity.ok(serviceScheduleService.create(requestDTO, user));
     }
 
+    @GetMapping("/{id}")
+    public ResponseEntity<ServiceScheduleResponseDTO> getScheduleById(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserModel user) {
+        // Busca detalhes (incluindo chatRoomId) validando se pertence ao usuário
+        return ResponseEntity.ok(serviceScheduleService.findByIdForUser(id, user));
+    }
+
     @GetMapping("/my-schedules")
     public ResponseEntity<List<ServiceScheduleResponseDTO>> getMySchedules(@AuthenticationPrincipal UserModel user) {
         return ResponseEntity.ok(serviceScheduleService.findForAuthenticatedUser(user));
