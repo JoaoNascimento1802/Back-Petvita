@@ -1,4 +1,3 @@
-// sesi/petvita/admin/dto/AdminUserCreateRequestDTO.java
 package sesi.petvita.admin.dto;
 
 import jakarta.validation.constraints.Email;
@@ -6,6 +5,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import sesi.petvita.user.role.UserRole;
+import sesi.petvita.veterinary.speciality.SpecialityEnum; // Importante
 
 public record AdminUserCreateRequestDTO(
         @NotBlank @Size(min = 3, max = 50)
@@ -31,6 +31,8 @@ public record AdminUserCreateRequestDTO(
         @NotNull
         UserRole role,
 
+        String crmv,
+        
         // --- CAMPO ADICIONADO ---
-        String crmv // Agora o Admin pode enviar o CRMV na criação
+        SpecialityEnum speciality // Agora o admin pode definir a especialidade
 ) {}

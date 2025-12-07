@@ -1,4 +1,3 @@
-// sesi/petvita/consultation/repository/ConsultationRepository.java
 package sesi.petvita.consultation.repository;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -22,17 +21,16 @@ public interface ConsultationRepository extends JpaRepository<ConsultationModel,
     // Lista consultas do Usuário (Cliente) ordenadas
     List<ConsultationModel> findByUsuarioOrderByConsultationdateDesc(UserModel usuario);
 
-    // --- ADICIONADO: Lista consultas do Veterinário ordenadas (Faltava este método) ---
+    // Lista consultas do Veterinário ordenadas
     List<ConsultationModel> findByVeterinarioOrderByConsultationdateDesc(VeterinaryModel veterinario);
 
-    // --- CORREÇÃO PARA findById (Detalhes) ---
-    // Usamos LEFT JOIN FETCH para garantir que traga os dados mesmo se algum relacionamento for nulo
+    // Detalhes da consulta com Fetch para performance
     @Query("SELECT c FROM ConsultationModel c " +
             "JOIN FETCH c.pet " +
             "JOIN FETCH c.usuario " +
             "JOIN FETCH c.veterinario v " +
-            "LEFT JOIN FETCH v.userAccount " + // LEFT JOIN é mais seguro
-            "LEFT JOIN FETCH c.clinicService " + // LEFT JOIN é mais seguro
+            "LEFT JOIN FETCH v.userAccount " +
+            "LEFT JOIN FETCH c.clinicService " +
             "WHERE c.id = :id")
     Optional<ConsultationModel> findByIdWithDetails(@Param("id") Long id);
 
@@ -63,14 +61,23 @@ public interface ConsultationRepository extends JpaRepository<ConsultationModel,
             @Param("speciality") SpecialityEnum speciality
     );
 
-    // Verifica horários ocupados
+    // --- QUERY AJUSTADA: Busca horários ocupados ---
+    // (Usa 'NOT IN' para garantir que FINALIZADA e CHECKED_IN também ocupem horário, não só AGENDADA)
     @Query("SELECT c.consultationtime FROM ConsultationModel c " +
             "WHERE c.veterinario.id = :veterinaryId " +
             "AND c.consultationdate = :date " +
-            "AND c.status IN ('AGENDADA', 'PENDENTE')")
+            "AND c.status NOT IN ('CANCELADA', 'RECUSADA')")
     List<LocalTime> findBookedTimesByVeterinarianAndDate(@Param("veterinaryId") Long veterinaryId, @Param("date") LocalDate date);
 
-    // Métodos padrão do JPA
+    // --- QUERY NOVA: Validação para Edição (Evita conflito ignorando o próprio ID) ---
+    boolean existsByVeterinarioIdAndConsultationdateAndConsultationtimeAndIdNot(
+            Long veterinaryId,
+            LocalDate date,
+            LocalTime time,
+            Long consultationId
+    );
+
+    // Métodos padrão do JPA (Mantidos conforme solicitado)
     List<ConsultationModel> findByVeterinarioAndConsultationdateBetween(VeterinaryModel vet, LocalDate startDate, LocalDate endDate);
 
     List<ConsultationModel> findByUsuarioAndConsultationdateBetween(UserModel user, LocalDate startDate, LocalDate endDate);

@@ -127,6 +127,40 @@ public class VeterinaryService {
     }
 
     @Transactional
+    public String updateProfilePicture(UserModel user, MultipartFile file) throws IOException {
+        // 1. Busca o perfil do veterinário vinculado ao usuário logado
+        VeterinaryModel vet = veterinaryRepository.findByUserAccount(user)
+                .orElseThrow(() -> new NoSuchElementException("Perfil de veterinário não encontrado."));
+
+        // 2. Faz o upload para o Cloudinary (aproveitando seu serviço existente)
+        Map uploadResult = cloudinaryService.upload(file);
+        String url = (String) uploadResult.get("url");
+        String publicId = (String) uploadResult.get("public_id");
+
+        // 3. Se já tinha uma foto antiga (que não seja a padrão), deleta do Cloudinary para não acumular lixo
+        if (vet.getImagePublicId() != null && !vet.getImagePublicId().isEmpty()) {
+            try {
+                cloudinaryService.delete(vet.getImagePublicId());
+            } catch (IOException e) {
+                System.err.println("Erro ao apagar imagem antiga: " + e.getMessage());
+            }
+        }
+
+        // 4. Atualiza as URLs no banco (Manter User e Vet sincronizados é boa prática)
+        vet.setImageurl(url);
+        vet.setImagePublicId(publicId); // Certifique-se de ter esse campo no Model, se não tiver, use só a URL
+
+        user.setImageurl(url);
+        user.setImagePublicId(publicId);
+
+        // 5. Salva
+        userRepository.save(user);
+        veterinaryRepository.save(vet);
+
+        return url;
+    }
+
+    @Transactional
     public VeterinaryResponseDTO createVeterinary(VeterinaryRequestDTO dto) {
         if (userRepository.findByEmail(dto.email()).isPresent()) {
             throw new IllegalStateException("Este e-mail já está em uso por outro usuário.");
@@ -177,40 +211,43 @@ public class VeterinaryService {
     public List<LocalTime> getAvailableSlots(Long vetId, LocalDate date) {
         VeterinaryModel vet = veterinaryRepository.findById(vetId)
                 .orElseThrow(() -> new NoSuchElementException("Veterinário não encontrado: " + vetId));
+        Long userId = vet.getUserAccount().getId();
 
-        DayOfWeek dayOfWeek = date.getDayOfWeek();
-        
-        WorkSchedule schedule = workScheduleRepository.findByProfessionalUserIdAndDayOfWeek(vet.getUserAccount().getId(), dayOfWeek)
+        // 1. Tenta buscar horário ESPECÍFICO
+        WorkSchedule schedule = workScheduleRepository.findByProfessionalUserIdAndWorkDate(userId, date)
                 .orElse(null);
+
+        // 2. Se não tiver, busca PADRÃO SEMANAL (usando o nome corrigido)
+        if (schedule == null) {
+            schedule = workScheduleRepository.findByProfessionalUserIdAndDayOfWeek(userId, date.getDayOfWeek())
+                    .orElse(null);
+        }
 
         if (schedule == null || !schedule.isWorking() || schedule.getStartTime() == null || schedule.getEndTime() == null) {
             return new ArrayList<>();
         }
 
+        // ... (restante da lógica igual: gerar slots, filtrar ocupados e passados)
         List<LocalTime> allPossibleSlots = new ArrayList<>();
         LocalTime currentSlot = schedule.getStartTime();
 
         while (currentSlot.isBefore(schedule.getEndTime())) {
             allPossibleSlots.add(currentSlot);
-            currentSlot = currentSlot.plusMinutes(45); 
+            currentSlot = currentSlot.plusMinutes(45);
         }
 
         List<LocalTime> bookedSlots = consultationRepository.findBookedTimesByVeterinarianAndDate(vetId, date);
         
-        // 1. Filtra horários já ocupados
         List<LocalTime> availableSlots = allPossibleSlots.stream()
                 .filter(slot -> !bookedSlots.contains(slot))
                 .collect(Collectors.toList());
 
-        // --- LÓGICA NOVA: FILTRAR HORÁRIOS PASSADOS SE FOR HOJE ---
         if (date.equals(LocalDate.now())) {
             LocalTime now = LocalTime.now();
-            // Filtra apenas horários futuros (adicionando uma pequena margem de 1 minuto para evitar bugs de milissegundos)
             availableSlots = availableSlots.stream()
-                    .filter(slot -> slot.isAfter(now.plusMinutes(1))) 
+                    .filter(slot -> slot.isAfter(now.plusMinutes(1)))
                     .collect(Collectors.toList());
         }
-        // -----------------------------------------------------------
 
         return availableSlots;
     }
@@ -486,5 +523,13 @@ public class VeterinaryService {
                         null
                 ))
                 .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public VeterinaryRatingRequestDTO getUserRatingForVet(Long vetId, Long userId) {
+        // CORREÇÃO: Chama o novo método resiliente
+        return ratingRepository.findFirstByVeterinaryIdAndUserIdOrderByIdDesc(vetId, userId)
+                .map(r -> new VeterinaryRatingRequestDTO(r.getRating(), r.getComment()))
+                .orElse(null);
     }
 }

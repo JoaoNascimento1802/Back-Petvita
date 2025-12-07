@@ -119,6 +119,15 @@ public class AdminController {
         return ResponseEntity.ok(consultationService.updateConsultationByAdmin(id, dto));
     }
 
+    @DeleteMapping("/consultations/{id}")
+    @Operation(summary = "[ADMIN] Excluir uma consulta permanentemente")
+    public ResponseEntity<Void> deleteConsultation(@PathVariable Long id) {
+        consultationService.deleteConsultation(id);
+        return ResponseEntity.noContent().build();
+    }
+
+
+
     @GetMapping("/reports/summary")
     @Operation(summary = "[ADMIN] Ver relatório customizado por período")
     public ResponseEntity<ReportSummaryDTO> getReportSummary(

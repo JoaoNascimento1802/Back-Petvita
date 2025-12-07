@@ -7,12 +7,14 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import sesi.petvita.employee.dto.EmployeeDashboardSummaryDTO;
+import sesi.petvita.employee.service.EmployeeService;
 import sesi.petvita.serviceschedule.dto.ServiceScheduleResponseDTO;
 import sesi.petvita.serviceschedule.service.ServiceScheduleService;
 import sesi.petvita.user.dto.UserResponseDTO;
 import sesi.petvita.user.model.UserModel;
 import sesi.petvita.user.role.UserRole;
 import sesi.petvita.user.service.UserService;
+import sesi.petvita.veterinary.dto.VeterinaryRatingRequestDTO;
 
 import java.util.List;
 
@@ -24,6 +26,7 @@ public class EmployeeController {
 
     private final ServiceScheduleService serviceScheduleService;
     private final UserService userService;
+    private final EmployeeService employeeService;
 
     @GetMapping("/my-schedules")
     public ResponseEntity<List<ServiceScheduleResponseDTO>> getMySchedules(@AuthenticationPrincipal UserModel employee) {
@@ -74,6 +77,27 @@ public class EmployeeController {
     public ResponseEntity<Void> finalizeSchedule(@PathVariable Long id, @AuthenticationPrincipal UserModel employee) {
         serviceScheduleService.finalizeSchedule(id, employee);
         return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/{id}/rate")
+    public ResponseEntity<Void> rateEmployee(
+            @PathVariable Long id,
+            @RequestBody VeterinaryRatingRequestDTO dto,
+            @AuthenticationPrincipal UserModel user) {
+        employeeService.addRating(id, user.getId(), dto);
+        return ResponseEntity.ok().build();
+    }
+
+    @GetMapping("/{id}/rate/me")
+    public ResponseEntity<VeterinaryRatingRequestDTO> getMyRating(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserModel user) {
+        return ResponseEntity.ok(employeeService.getRatingByUser(id, user.getId()));
+    }
+
+    @GetMapping("/me/rating-summary")
+    public ResponseEntity<Double> getMyAverage(@AuthenticationPrincipal UserModel user) {
+        return ResponseEntity.ok(employeeService.getAverageRating(user.getId()));
     }
 
 

@@ -142,6 +142,14 @@ public class ConsultationService {
     }
 
     @Transactional
+    public void deleteConsultation(Long consultationId) {
+        if (!consultationRepository.existsById(consultationId)) {
+            throw new NoSuchElementException("Consulta não encontrada com o ID: " + consultationId);
+        }
+        consultationRepository.deleteById(consultationId);
+    }
+
+    @Transactional
     public void cancelConsultation(Long consultationId, UserModel userCanceling) {
         ConsultationModel consultation = findByIdOrThrow(consultationId);
         if (consultation.getStatus() != ConsultationStatus.AGENDADA) {
@@ -226,7 +234,7 @@ public class ConsultationService {
                     .veterinary(consultation.getVeterinario())
                     .diagnosis(report)
                     .treatment("")
-                    .pet(consultation.getPet()) // --- CORREÇÃO AQUI: Passando o Pet explicitamente ---
+                    .pet(consultation.getPet())
                     .build();
             medicalRecordRepository.save(newRecord);
             consultation.setMedicalRecord(newRecord);
@@ -267,12 +275,52 @@ public class ConsultationService {
 
     @Transactional
     public ConsultationResponseDTO updateConsultationByAdmin(Long consultationId, ConsultationUpdateRequestDTO dto) {
-        ConsultationModel consultation = findByIdOrThrow(consultationId);
-        if (dto.consultationdate() != null) consultation.setConsultationdate(dto.consultationdate());
-        if (dto.consultationtime() != null) consultation.setConsultationtime(dto.consultationtime());
-        if (dto.reason() != null && !dto.reason().isEmpty()) consultation.setReason(dto.reason());
-        if (dto.observations() != null && !dto.observations().isEmpty()) consultation.setObservations(dto.observations());
-        return consultationMapper.toDTO(consultationRepository.save(consultation));
+        ConsultationModel consultation = consultationRepository.findById(consultationId)
+                .orElseThrow(() -> new NoSuchElementException("Consulta não encontrada com o ID: " + consultationId));
+
+        // --- INÍCIO DA VALIDAÇÃO DE CONFLITO ---
+        // Se o admin tentar mudar data ou hora, precisamos checar se o veterinário já está ocupado
+        if (dto.consultationdate() != null || dto.consultationtime() != null) {
+
+            LocalDate newDate = dto.consultationdate() != null ? dto.consultationdate() : consultation.getConsultationdate();
+            LocalTime newTime = dto.consultationtime() != null ? dto.consultationtime() : consultation.getConsultationtime();
+            Long vetId = consultation.getVeterinario().getId();
+
+            // Verifica se existe outra consulta (ID diferente) para o mesmo vet nesse horário
+            boolean conflict = consultationRepository.existsByVeterinarioIdAndConsultationdateAndConsultationtimeAndIdNot(
+                    vetId, newDate, newTime, consultationId
+            );
+
+            if (conflict) {
+                throw new IllegalStateException("O veterinário já possui uma consulta marcada para este horário.");
+            }
+        }
+        // --- FIM DA VALIDAÇÃO ---
+
+        boolean changed = false;
+
+        if (dto.consultationdate() != null) {
+            consultation.setConsultationdate(dto.consultationdate());
+            changed = true;
+        }
+        if (dto.consultationtime() != null) {
+            consultation.setConsultationtime(dto.consultationtime());
+            changed = true;
+        }
+        if (dto.reason() != null && !dto.reason().trim().isEmpty()) {
+            consultation.setReason(dto.reason());
+            changed = true;
+        }
+        if (dto.observations() != null) {
+            consultation.setObservations(dto.observations());
+            changed = true;
+        }
+
+        if (changed) {
+            return consultationMapper.toDTO(consultationRepository.save(consultation));
+        } else {
+            return consultationMapper.toDTO(consultation);
+        }
     }
 
     public List<ConsultationResponseDTO> findConsultationsByDate(LocalDate date) {

@@ -1,4 +1,3 @@
-# Arquivos de configuração local
 /src/main/resources/application.properties
 /src/main/resources/firebase-service-account.json
 

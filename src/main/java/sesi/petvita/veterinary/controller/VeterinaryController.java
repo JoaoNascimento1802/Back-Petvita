@@ -16,6 +16,7 @@ import org.springframework.web.multipart.MultipartFile;
 import sesi.petvita.admin.dto.ReportSummaryDTO;
 import sesi.petvita.user.model.UserModel;
 import sesi.petvita.veterinary.dto.*;
+import sesi.petvita.veterinary.model.VeterinaryModel;
 import sesi.petvita.veterinary.service.VeterinaryService;
 import sesi.petvita.veterinary.speciality.SpecialityEnum;
 
@@ -37,6 +38,15 @@ public class VeterinaryController {
     @Operation(summary = "[ADMIN] Cadastrar um novo veterinário")
     public ResponseEntity<VeterinaryResponseDTO> createVeterinary(@Valid @RequestBody VeterinaryRequestDTO requestDTO) {
         return ResponseEntity.status(HttpStatus.CREATED).body(veterinaryService.createVeterinary(requestDTO));
+    }
+
+
+    @GetMapping("/{id}/rate/me")
+    @Operation(summary = "[USER] Obter minha avaliação anterior para este veterinário")
+    public ResponseEntity<VeterinaryRatingRequestDTO> getMyRating(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserModel user) {
+        return ResponseEntity.ok(veterinaryService.getUserRatingForVet(id, user.getId()));
     }
 
     @GetMapping("/me/custom-report")
@@ -88,12 +98,35 @@ public class VeterinaryController {
         return ResponseEntity.ok(veterinaryService.getAvailableSlots(vetId, date));
     }
 
+    @PatchMapping(value = "/me/photo", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "[VET] Atualizar foto de perfil do veterinário logado")
+    public ResponseEntity<Map<String, String>> updateMyPhoto(
+            @AuthenticationPrincipal UserModel user,
+            @RequestParam("file") MultipartFile file) throws IOException {
+
+        String newImageUrl = veterinaryService.updateProfilePicture(user, file);
+        return ResponseEntity.ok(Map.of("url", newImageUrl));
+    }
+
 
     @DeleteMapping("/{id}")
     @Operation(summary = "[ADMIN] Deletar veterinário pelo ID")
     public ResponseEntity<Void> deleteVeterinary(@PathVariable Long id) {
         veterinaryService.deleteVeterinary(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/me")
+    @Operation(summary = "[VET] Atualizar meus próprios dados de perfil")
+    public ResponseEntity<VeterinaryResponseDTO> updateMyProfile(
+            @AuthenticationPrincipal UserModel user,
+            @Valid @RequestBody VeterinaryRequestDTO requestDTO) {
+
+        // 1. Busca o DTO do veterinário vinculado ao usuário logado
+        VeterinaryResponseDTO vetDTO = veterinaryService.findVeterinaryByUserAccount(user);
+
+        // 2. Chama o update usando vetDTO.id() (sem o "get")
+        return ResponseEntity.ok(veterinaryService.updateVeterinary(vetDTO.id(), requestDTO));
     }
 
     @PostMapping("/{id}/rate")
@@ -170,5 +203,13 @@ public class VeterinaryController {
             System.err.println("Erro ao gerar PDF da prescrição: " + e.getMessage());
             return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
         }
+    }
+
+    @GetMapping("/ratings/check/{vetId}")
+    @Operation(summary = "[USER] Verificar minha avaliação para um veterinário específico")
+    public ResponseEntity<VeterinaryRatingRequestDTO> checkMyRating(
+            @PathVariable Long vetId,
+            @AuthenticationPrincipal UserModel user) {
+        return ResponseEntity.ok(veterinaryService.getUserRatingForVet(vetId, user.getId()));
     }
 }

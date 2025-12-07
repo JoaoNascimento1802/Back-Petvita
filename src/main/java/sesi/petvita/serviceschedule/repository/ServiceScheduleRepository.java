@@ -1,5 +1,5 @@
-// sesi/petvita/serviceschedule/repository/ServiceScheduleRepository.java
 package sesi.petvita.serviceschedule.repository;
+
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -9,12 +9,11 @@ import sesi.petvita.serviceschedule.model.ServiceScheduleModel;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
-import java.util.Optional; // --- ADICIONADO ---
+import java.util.Optional;
 
 @Repository
 public interface ServiceScheduleRepository extends JpaRepository<ServiceScheduleModel, Long> {
 
-    // --- NOVO MÉTODO ADICIONADO AQUI ---
     @Query("SELECT s FROM ServiceScheduleModel s " +
             "JOIN FETCH s.pet " +
             "JOIN FETCH s.client " +
@@ -22,7 +21,6 @@ public interface ServiceScheduleRepository extends JpaRepository<ServiceSchedule
             "JOIN FETCH s.clinicService " +
             "WHERE s.id = :id")
     Optional<ServiceScheduleModel> findByIdWithDetails(@Param("id") Long id);
-    // --- FIM DO NOVO MÉTODO ---
 
     @Query("SELECT s FROM ServiceScheduleModel s " +
             "JOIN FETCH s.pet " +
@@ -47,6 +45,7 @@ public interface ServiceScheduleRepository extends JpaRepository<ServiceSchedule
 
     List<ServiceScheduleModel> findByClientIdOrderByScheduleDateDesc(Long clientId);
 
+    // --- NOVO MÉTODO PARA BUSCAR HORÁRIOS OCUPADOS ---
     @Query("SELECT s.scheduleTime FROM ServiceScheduleModel s " +
             "WHERE s.employee.id = :employeeId " +
             "AND s.scheduleDate = :date " +

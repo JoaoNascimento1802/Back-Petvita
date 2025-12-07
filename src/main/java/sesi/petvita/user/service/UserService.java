@@ -125,7 +125,7 @@ public class UserService {
 
         UserModel savedUser = userRepository.save(user);
         if (savedUser.getRole() == UserRole.VETERINARY) {
-            createVeterinaryProfile(savedUser, requestDTO.crmv());
+            createVeterinaryProfile(savedUser, requestDTO.crmv(), SpecialityEnum.CLINICO_GERAL);
         }
 
         // --- ENVIO DE E-MAIL DE BOAS-VINDAS ---
@@ -158,8 +158,11 @@ public class UserService {
         user.setImageurl(dto.imageurl() != null && !dto.imageurl().isEmpty() ? dto.imageurl() : DEFAULT_IMAGE_URL);
 
         UserModel savedUser = userRepository.save(user);
+        
         if (dto.role() == UserRole.VETERINARY) {
-            createVeterinaryProfile(savedUser, dto.crmv());
+            // Passa a especialidade escolhida ou usa CLINICO_GERAL como fallback
+            SpecialityEnum spec = dto.speciality() != null ? dto.speciality() : SpecialityEnum.CLINICO_GERAL;
+            createVeterinaryProfile(savedUser, dto.crmv(), spec);
         } else if (dto.role() == UserRole.EMPLOYEE) {
             initializeWorkScheduleFor(savedUser);
         }
@@ -180,7 +183,7 @@ public class UserService {
         return userMapper.toDTO(savedUser);
     }
 
-    private void createVeterinaryProfile(UserModel savedUser, String crmv) {
+    private void createVeterinaryProfile(UserModel savedUser, String crmv, SpecialityEnum speciality) {
         String finalCrmv = (crmv != null && !crmv.trim().isEmpty()) ? crmv : "PENDENTE";
 
         VeterinaryModel vetProfile = VeterinaryModel.builder()
@@ -188,7 +191,7 @@ public class UserService {
                 .name(savedUser.getActualUsername())
                 .phone(savedUser.getPhone())
                 .imageurl(savedUser.getImageurl())
-                .specialityenum(SpecialityEnum.CLINICO_GERAL)
+                .specialityenum(speciality) // Usa o valor passado
                 .crmv(finalCrmv)
                 .build();
 

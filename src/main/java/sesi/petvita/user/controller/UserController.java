@@ -15,6 +15,8 @@ import sesi.petvita.user.dto.UserProfileUpdateDTO;
 import sesi.petvita.user.mapper.UserMapper;
 import sesi.petvita.user.model.UserModel;
 import sesi.petvita.user.service.UserService;
+import sesi.petvita.veterinary.dto.VeterinaryRatingRequestDTO;
+import sesi.petvita.veterinary.service.VeterinaryService;
 
 @RestController
 @RequestMapping("/users")
@@ -24,6 +26,7 @@ public class UserController {
 
     private final UserService userService;
     private final UserMapper userMapper;
+    private final VeterinaryService veterinaryService;
 
     @PostMapping("/register")
     @Operation(summary = "Registrar um novo usuário")
@@ -37,6 +40,14 @@ public class UserController {
     public ResponseEntity<UserResponseDTO> getCurrentUser(@AuthenticationPrincipal UserModel user) {
         UserResponseDTO userResponse = userMapper.toDTO(user);
         return ResponseEntity.ok(userResponse);
+    }
+
+    @GetMapping("/me/ratings/veterinary/{vetId}")
+    @Operation(summary = "[USER] Verificar minha avaliação para um veterinário")
+    public ResponseEntity<VeterinaryRatingRequestDTO> checkMyRatingForVet(
+            @PathVariable Long vetId,
+            @AuthenticationPrincipal UserModel user) {
+        return ResponseEntity.ok(veterinaryService.getUserRatingForVet(vetId, user.getId()));
     }
 
     /**

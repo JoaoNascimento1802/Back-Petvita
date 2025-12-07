@@ -1,4 +1,3 @@
-// sesi/petvita/veterinary/model/WorkSchedule.java
 package sesi.petvita.veterinary.model;
 
 import jakarta.persistence.*;
@@ -6,6 +5,7 @@ import lombok.*;
 import sesi.petvita.user.model.UserModel;
 
 import java.time.DayOfWeek;
+import java.time.LocalDate;
 import java.time.LocalTime;
 
 @Entity
@@ -25,6 +25,13 @@ public class WorkSchedule {
     @Column(name = "day_of_week")
     private DayOfWeek dayOfWeek;
 
+    // --- NOVO CAMPO: DATA ESPECÍFICA ---
+    // Se preenchido, este registro vale apenas para esta data (sobrescreve o semanal)
+    // Se nulo, é o padrão semanal para aquele dia da semana.
+    @Column(name = "work_date")
+    private LocalDate workDate;
+    // ------------------------------------
+
     @Column(name = "start_time")
     private LocalTime startTime;
 
@@ -34,8 +41,6 @@ public class WorkSchedule {
     @Column(name = "is_working")
     private boolean isWorking;
 
-    // CORREÇÃO: Liga o horário ao Usuário Profissional (Vet ou Employee)
-    // Isso substitui o antigo "veterinary_id" que estava dando erro
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "professional_user_id", nullable = false)
     private UserModel professionalUser;

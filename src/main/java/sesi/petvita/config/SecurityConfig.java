@@ -43,9 +43,10 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(authorize -> authorize
+                        // ====================================================
+                        // 1. PREFLIGHT E PÚBLICOS (Prioridade Máxima)
+                        // ====================================================
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-
-                        // 1. ENDPOINTS PÚBLICOS (Acesso total sem login)
                         .requestMatchers(
                                 "/auth/**",
                                 "/users/register",
@@ -54,62 +55,88 @@ public class SecurityConfig {
                                 "/api/public/**"
                         ).permitAll()
 
-                        // GET em /veterinary é público (para busca no agendamento)
+                        // ====================================================
+                        // 2. CORREÇÃO DEFINITIVA DE AVALIAÇÃO E USUÁRIO
+                        // ====================================================
+
+                        // Libera qualquer sub-rota de /users/ para quem estiver logado (para update de perfil).
+                        .requestMatchers("/users/**").authenticated()
+
+                        // Libera a nova rota centralizada de avaliações
+                        .requestMatchers("/api/ratings/**").authenticated()
+
+                        // ====================================================
+                        // 3. PERFIL PÚBLICO (VETERINÁRIO)
+                        // ====================================================
+                        // Deve vir ANTES das regras restritivas de /veterinary/** para permitir visualização sem login
                         .requestMatchers(HttpMethod.GET, "/veterinary/**").permitAll()
 
-                        // POST/PUT/DELETE em /veterinary é restrito a Vets e Admins (CRÍTICO PARA PRESCRIÇÃO/PERFIL)
-                        .requestMatchers("/veterinary/**").hasAnyRole("VETERINARY", "ADMIN")
 
-                        // 2. ENDPOINTS ESPECÍFICOS (Ordem importa: Específicos antes dos genéricos)
-                        .requestMatchers(HttpMethod.GET, "/admin/consultations").hasAnyRole("ADMIN", "EMPLOYEE")
-                        .requestMatchers("/api/employee/all").authenticated() // Qualquer autenticado pode listar funcionários para agendar
+                        // ====================================================
+                        // 4. ÁREAS RESTRITAS (ADMIN, VET, FUNC)
+                        // ====================================================
 
-                        // 3. ENDPOINTS DE ADMIN (Genérico)
-                        .requestMatchers("/admin/**").hasRole("ADMIN")
-                        .requestMatchers("/api/schedules/admin/**").hasRole("ADMIN")
+                        // ADMINISTRAÇÃO
+                        .requestMatchers(HttpMethod.DELETE, "/admin/consultations/*").hasAnyAuthority("ADMIN", "ROLE_ADMIN")
+                        .requestMatchers("/admin/**").hasAnyAuthority("ADMIN", "ROLE_ADMIN")
+                        .requestMatchers("/api/schedules/admin/**").hasAnyAuthority("ADMIN", "ROLE_ADMIN")
+                        .requestMatchers("/admin/service-schedules/**").hasAnyAuthority("ADMIN", "ROLE_ADMIN")
 
-                        // 4. ENDPOINTS DE PRONTUÁRIO E PETS (Acesso compartilhado)
-                        .requestMatchers(HttpMethod.GET, "/api/pets/{petId}/medical-records").hasAnyRole("USER", "VETERINARY", "ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/api/medical-records/**").hasAnyRole("USER", "VETERINARY", "ADMIN")
-                        .requestMatchers("/pets/**").hasAnyRole("USER", "VETERINARY", "ADMIN")
+                        // FUNCIONÁRIO
+                        .requestMatchers("/api/employee/all").authenticated() // Lista para agendamento
+                        .requestMatchers("/api/employee/me/**").hasAnyAuthority("EMPLOYEE", "ROLE_EMPLOYEE")
+                        .requestMatchers("/api/employee/ratings/**").hasAnyAuthority("EMPLOYEE", "ROLE_EMPLOYEE")
+                        .requestMatchers("/api/employee/**").hasAnyAuthority("EMPLOYEE", "ADMIN", "ROLE_EMPLOYEE", "ROLE_ADMIN")
 
-                        // 5. ENDPOINTS DE SERVIÇOS E FUNCIONÁRIOS
-                        .requestMatchers("/api/service-schedules/**").hasAnyRole("USER", "EMPLOYEE", "ADMIN")
-                        .requestMatchers("/api/employee/**").hasAnyRole("EMPLOYEE", "ADMIN")
-                        .requestMatchers("/api/schedules/employee/my-schedule").hasRole("EMPLOYEE")
+                        // SERVIÇOS (Funcionário/Admin/User)
+                        .requestMatchers("/api/service-schedules/**").hasAnyAuthority("USER", "EMPLOYEE", "ADMIN", "ROLE_USER", "ROLE_EMPLOYEE", "ROLE_ADMIN")
 
-                        // 6. ENDPOINTS DE VETERINÁRIO (Área logada)
-                        .requestMatchers("/vet/**").hasRole("VETERINARY")
-                        .requestMatchers("/api/schedules/vet/my-schedule").hasRole("VETERINARY")
-                        .requestMatchers(
-                                "/consultas/{id:[0-9]+}/accept",
-                                "/consultas/{id:[0-9]+}/reject",
-                                "/consultas/{id:[0-9]+}/finalize"
-                        ).hasRole("VETERINARY")
-                        .requestMatchers(HttpMethod.PUT, "/consultas/{id:[0-9]+}/report").hasRole("VETERINARY")
+                        // === AQUI ESTÁ A CORREÇÃO DO ERRO 403 DO FUNCIONÁRIO ===
+                        // Permite que EMPLOYEE, ADMIN e VETERINARY acessem os horários de funcionário
+                        .requestMatchers("/api/schedules/employee/**").hasAnyAuthority("EMPLOYEE", "ROLE_EMPLOYEE", "ADMIN", "ROLE_ADMIN", "VETERINARY", "ROLE_VETERINARY")
 
-                        // 7. ENDPOINTS DE CLIENTE (USER)
-                        .requestMatchers("/agendar-consulta").hasRole("USER")
-                        .requestMatchers("/consultas/my-consultations").hasRole("USER")
-                        .requestMatchers(HttpMethod.POST, "/consultas").hasRole("USER")
-                        .requestMatchers(HttpMethod.PUT, "/consultas/{id:[0-9]+}").hasRole("USER")
-                        .requestMatchers(HttpMethod.POST, "/veterinary/{id:[0-9]+}/rate").hasRole("USER")
+                        // VETERINÁRIO (Área Logada e Gestão)
+                        // Rotas específicas do Veterinário
+                        .requestMatchers("/vet/**").hasAnyAuthority("VETERINARY", "ROLE_VETERINARY")
+                        .requestMatchers("/api/schedules/vet/**").hasAnyAuthority("VETERINARY", "ROLE_VETERINARY")
+                        .requestMatchers("/veterinary/ratings/my-ratings").hasAnyAuthority("VETERINARY", "ROLE_VETERINARY")
 
-                        // 8. ENDPOINTS COMPARTILHADOS DE CONSULTA
-                        .requestMatchers(HttpMethod.POST, "/consultas/{id:[0-9]+}/cancel").hasAnyRole("USER", "VETERINARY")
-                        .requestMatchers(HttpMethod.GET, "/consultas/{id:[0-9]+}").hasAnyRole("USER", "VETERINARY", "ADMIN", "EMPLOYEE")
-                        // Regra geral para outras rotas de consulta não mapeadas acima
+                        // Consultas e Ações Médicas
+                        .requestMatchers("/veterinary/consultations/**").hasAnyAuthority("VETERINARY", "ROLE_VETERINARY")
+                        .requestMatchers("/consultas/*/accept", "/consultas/*/reject", "/consultas/*/finalize").hasAnyAuthority("VETERINARY", "ROLE_VETERINARY")
+                        .requestMatchers(HttpMethod.PUT, "/consultas/*/report").hasAnyAuthority("VETERINARY", "ROLE_VETERINARY")
+
+                        // Upload e Prescrição
+                        .requestMatchers(HttpMethod.POST, "/veterinary/consultations/*/attachments").hasAnyAuthority("VETERINARY", "ROLE_VETERINARY")
+                        .requestMatchers(HttpMethod.POST, "/veterinary/consultations/*/prescriptions").hasAnyAuthority("VETERINARY", "ROLE_VETERINARY")
+
+                        // Edição de Perfil Veterinário (Protegido - vem depois do GET público lá em cima)
+                        .requestMatchers("/veterinary/**").hasAnyAuthority("VETERINARY", "ADMIN", "ROLE_VETERINARY", "ROLE_ADMIN")
+
+
+                        // ====================================================
+                        // 5. CLIENTE E ROTAS GERAIS
+                        // ====================================================
+                        .requestMatchers("/agendar-consulta").hasAnyAuthority("USER", "ROLE_USER")
+                        .requestMatchers("/consultas/my-consultations").hasAnyAuthority("USER", "ROLE_USER")
+
+                        // Cancelamento (Compartilhado)
+                        .requestMatchers(HttpMethod.POST, "/consultas/*/cancel").authenticated()
+
+                        // Prontuários e Pets (Leitura compartilhada)
+                        .requestMatchers(HttpMethod.GET, "/api/pets/**").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/medical-records/**").authenticated()
+                        .requestMatchers("/pets/**").authenticated()
+
+                        // Chat e Notificações
+                        .requestMatchers("/chat/**").authenticated()
+                        .requestMatchers("/upload/**", "/notifications/**").authenticated()
+
+                        // Rotas gerais de consulta (ex: detalhes GET)
                         .requestMatchers("/consultas/**").authenticated()
+                        .requestMatchers("/api/available-times/**").hasAnyAuthority("ADMIN", "ROLE_ADMIN", "EMPLOYEE", "ROLE_EMPLOYEE", "USER", "ROLE_USER")
 
-                        // 9. ENDPOINTS GERAIS AUTENTICADOS (Perfil, Upload, Chat, Notificações)
-                        .requestMatchers(
-                                "/users/me",
-                                "/upload/**",
-                                "/chat/**",
-                                "/notifications/**"
-                        ).authenticated()
-
-                        // 10. REGRA FINAL (Segurança padrão)
+                        // 6. REGRA FINAL
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -121,11 +148,13 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        // Permitindo origens locais e de produção
-        configuration.setAllowedOrigins(Arrays.asList(allowedOrigins));
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of("*"));
+        // CORS TOTALMENTE PERMISSIVO
+        configuration.addAllowedOriginPattern("*");
+        configuration.addAllowedMethod("*");
+        configuration.addAllowedHeader("*");
         configuration.setAllowCredentials(true);
+        configuration.addExposedHeader("Authorization");
+        configuration.addExposedHeader("Content-Disposition"); // Útil para download de PDF
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);

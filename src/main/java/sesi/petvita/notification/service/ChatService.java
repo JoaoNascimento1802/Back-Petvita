@@ -45,13 +45,22 @@ public class ChatService {
 
         Map<String, Object> messageData = createMessageData(sender, content);
         
-        // USANDO O CHAT ROOM ID ÚNICO
+        // --- CORREÇÃO: GARANTIR QUE EXISTA UM UUID ---
         String uniqueChatId = consultation.getChatRoomId(); 
+        
+        if (uniqueChatId == null || uniqueChatId.trim().isEmpty()) {
+            // Se for antigo e não tiver UUID, gera agora e salva
+            uniqueChatId = java.util.UUID.randomUUID().toString();
+            consultation.setChatRoomId(uniqueChatId);
+            consultationRepository.save(consultation);
+            log.info("UUID de chat gerado tardiamente para consulta {}: {}", consultationId, uniqueChatId);
+        }
+        // ---------------------------------------------
 
         try {
             // MUDANÇA: Usa a coleção "chats" com o ID único
             DocumentReference messageRef = firestore.collection("chats")
-                    .document(uniqueChatId)
+                    .document(uniqueChatId) // Agora garantimos que não é nulo
                     .collection("mensagens")
                     .document();
             
@@ -107,9 +116,17 @@ public class ChatService {
 
         Map<String, Object> messageData = createMessageData(sender, content);
 
-        // USANDO O CHAT ROOM ID ÚNICO
+        // --- CORREÇÃO ---
         String uniqueChatId = service.getChatRoomId();
 
+        if (uniqueChatId == null || uniqueChatId.trim().isEmpty()) {
+            uniqueChatId = java.util.UUID.randomUUID().toString();
+            service.setChatRoomId(uniqueChatId);
+            serviceScheduleRepository.save(service);
+            log.info("UUID de chat gerado tardiamente para serviço {}: {}", serviceScheduleId, uniqueChatId);
+        }
+        // ----------------
+        
         try {
             // MUDANÇA: Usa a coleção "chats" com o ID único
             DocumentReference messageRef = firestore.collection("chats")
@@ -165,23 +182,25 @@ public class ChatService {
     }
 
     private boolean isUserAuthorizedForChat(ConsultationModel consultation, UserModel user) {
-        if (user.getRole() == UserRole.ADMIN || user.getRole() == UserRole.EMPLOYEE) {
-            return true;
-        }
-        Long consultationUserId = consultation.getUsuario().getId();
-        Long vetUserAccountId = (consultation.getVeterinario().getUserAccount() != null)
-                ? consultation.getVeterinario().getUserAccount().getId() : -1L;
+        // CORREÇÃO: Se for ADMIN ou ROLE_ADMIN, permite.
+        if (user.getRole() == UserRole.ADMIN) return true;
 
-        return user.getId().equals(consultationUserId) || user.getId().equals(vetUserAccountId);
+        // Se for EMPLOYEE, precisamos ver se ele tem permissão de ver consultas (geralmente não, mas ok)
+        if (user.getRole() == UserRole.EMPLOYEE) return false;
+
+        Long userId = consultation.getUsuario().getId();
+        Long vetId = (consultation.getVeterinario().getUserAccount() != null) ? consultation.getVeterinario().getUserAccount().getId() : -1L;
+
+        return user.getId().equals(userId) || user.getId().equals(vetId);
     }
 
     private boolean isUserAuthorizedForServiceChat(ServiceScheduleModel service, UserModel user) {
-        if (user.getRole() == UserRole.ADMIN) {
-            return true;
-        }
-        Long clientUserId = service.getClient().getId();
-        Long employeeUserId = service.getEmployee().getId();
+        // CORREÇÃO: Admin sempre pode.
+        if (user.getRole() == UserRole.ADMIN) return true;
 
-        return user.getId().equals(clientUserId) || user.getId().equals(employeeUserId);
+        Long clientId = service.getClient().getId();
+        Long empId = service.getEmployee().getId();
+
+        return user.getId().equals(clientId) || user.getId().equals(empId);
     }
 }
